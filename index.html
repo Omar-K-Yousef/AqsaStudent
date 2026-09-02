@@ -1,0 +1,1126 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<title>مركز الأقصى القرآني</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&family=Amiri:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<style>
+  :root{
+    --ink:#0d302c;
+    --teal-950:#092623;
+    --teal-800:#0f4640;
+    --teal-700:#1a6a5f;
+    --teal-500:#2fa89b;
+    --gold:#e9c250;
+    --gold-light:#f3da84;
+    --parchment:#f7f4ea;
+    --parchment-2:#efe7d2;
+    --mint:#e7f5f4;
+    --red:#a8412f;
+    --line:#d8d3ae;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:'Cairo',sans-serif;
+    background:var(--parchment);
+    color:var(--ink);
+    min-height:100vh;
+  }
+  #app{min-height:100vh;}
+  ::selection{background:var(--gold-light);}
+
+  /* ---------- Login ---------- */
+  .login-wrap{
+    min-height:100vh;
+    display:flex;align-items:center;justify-content:center;
+    background:
+      radial-gradient(circle at 20% 20%, rgba(201,162,75,.15), transparent 40%),
+      radial-gradient(circle at 80% 80%, rgba(23,90,81,.25), transparent 45%),
+      var(--teal-950);
+    padding:24px;
+  }
+  .login-card{
+    width:100%;max-width:420px;
+    background:var(--parchment);
+    border:1px solid var(--line);
+    border-radius:18px;
+    padding:36px 30px;
+    box-shadow:0 30px 60px rgba(0,0,0,.35);
+    position:relative;
+    overflow:hidden;
+  }
+  .login-card::before{
+    content:"";position:absolute;inset:0;
+    border:10px solid transparent;
+    background:
+      linear-gradient(var(--parchment),var(--parchment)) padding-box,
+      linear-gradient(135deg,var(--gold),var(--teal-700) 60%,var(--gold)) border-box;
+    border-radius:18px;
+    pointer-events:none;
+    z-index:-1;
+  }
+  .login-card > *{ position:relative; z-index:1; }
+  .brand{text-align:center;margin-bottom:22px;}
+  .brand .mark{
+    width:64px;height:64px;margin:0 auto 10px;
+    border-radius:50%;
+    overflow:hidden;
+    background:var(--parchment);
+    display:flex;align-items:center;justify-content:center;
+    box-shadow:0 0 0 4px var(--parchment), 0 0 0 5px var(--gold), 0 6px 18px rgba(9,38,35,.35);
+  }
+  .brand .mark img{width:100%;height:100%;object-fit:cover;}
+  .brand h1{font-size:22px;margin:0;color:var(--teal-800);font-weight:900;}
+  .brand p{margin:4px 0 0;font-size:12.5px;color:#7a6f4d;letter-spacing:.5px;}
+
+  .tabs{display:flex;background:var(--parchment-2);border-radius:12px;padding:4px;margin-bottom:20px;}
+  .tab-btn{flex:1;padding:10px 8px;border:none;background:transparent;border-radius:9px;font-family:inherit;font-weight:700;font-size:14px;color:#7a6f4d;cursor:pointer;transition:.2s;}
+  .tab-btn.active{background:var(--teal-800);color:var(--parchment);box-shadow:0 4px 10px rgba(15,46,44,.25);}
+
+  label{display:block;font-size:12.5px;font-weight:700;color:var(--teal-800);margin-bottom:5px;}
+  .field{margin-bottom:14px;}
+  input[type=text],input[type=password],input[type=email],input[type=date],select{
+    width:100%;padding:11px 13px;border:1.5px solid var(--line);border-radius:10px;
+    font-family:inherit;font-size:14px;background:#fffdf7;color:var(--ink);
+    outline:none;transition:.15s;
+  }
+  input:focus,select:focus{border-color:var(--teal-500);box-shadow:0 0 0 3px rgba(31,143,125,.15);}
+  .btn{
+    display:inline-flex;align-items:center;justify-content:center;gap:8px;
+    padding:11px 18px;border-radius:10px;border:none;cursor:pointer;
+    font-family:inherit;font-weight:700;font-size:14px;transition:.15s;
+  }
+  .btn-primary{background:var(--teal-800);color:var(--parchment);width:100%;}
+  .btn-primary:hover{background:var(--teal-700);}
+  .btn-gold{background:var(--gold);color:var(--teal-950);}
+  .btn-gold:hover{background:var(--gold-light);}
+  .btn-ghost{background:transparent;border:1.5px solid var(--line);color:var(--teal-800);}
+  .btn-ghost:hover{background:var(--parchment-2);}
+  .btn-danger{background:transparent;border:1.5px solid var(--red);color:var(--red);}
+  .btn-danger:hover{background:rgba(168,65,47,.08);}
+  .btn-sm{padding:6px 10px;font-size:12.5px;border-radius:8px;}
+  .error-msg{background:rgba(168,65,47,.1);border:1px solid rgba(168,65,47,.35);color:var(--red);padding:9px 12px;border-radius:9px;font-size:13px;margin-bottom:14px;}
+  .pwd-wrap{position:relative;}
+  .pwd-wrap input{padding-left:40px;}
+  .pwd-toggle{position:absolute;left:4px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:16px;padding:6px;color:#9a8f6d;line-height:1;}
+  .pwd-toggle:hover{color:var(--teal-700);}
+  .hint{font-size:11.5px;color:#9a8f6d;margin-top:14px;text-align:center;line-height:1.7;}
+
+  /* ---------- App shell ---------- */
+  .shell{display:flex;min-height:100vh;}
+  .sidebar{
+    width:230px;flex-shrink:0;background:var(--teal-950);color:var(--parchment);
+    padding:22px 14px;display:flex;flex-direction:column;
+  }
+  .sidebar .brand2{display:flex;align-items:center;gap:10px;padding:0 6px 20px;border-bottom:1px solid rgba(255,255,255,.08);margin-bottom:16px;}
+  .sidebar .brand2 .mark{width:38px;height:38px;border-radius:50%;overflow:hidden;flex-shrink:0;background:var(--parchment);box-shadow:0 0 0 2px var(--gold);}
+  .sidebar .brand2 .mark img{width:100%;height:100%;object-fit:cover;}
+  .sidebar .brand2 div b{display:block;font-size:14.5px;}
+  .sidebar .brand2 div span{display:block;font-size:11px;color:var(--gold-light);}
+  .nav-item{
+    display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:10px;cursor:pointer;
+    font-size:13.5px;font-weight:700;color:#d9d3c0;margin-bottom:4px;transition:.15s;border:none;background:transparent;width:100%;text-align:right;font-family:inherit;
+  }
+  .nav-item:hover{background:rgba(255,255,255,.06);}
+  .nav-item.active{background:var(--teal-700);color:#fff;}
+  .nav-item .ic{font-size:16px;}
+  .sidebar-foot{margin-top:auto;padding-top:14px;border-top:1px solid rgba(255,255,255,.08);}
+  .logout-btn{width:100%;background:transparent;border:1.5px solid rgba(255,255,255,.2);color:#e8e2cf;padding:9px;border-radius:9px;font-family:inherit;font-weight:700;font-size:13px;cursor:pointer;}
+  .logout-btn:hover{background:rgba(255,255,255,.08);}
+
+  .main{flex:1;padding:28px 32px;max-width:1200px;}
+  .page-head{margin-bottom:22px;}
+  .page-head h2{margin:0 0 4px;font-size:22px;color:var(--teal-800);font-weight:900;}
+  .page-head p{margin:0;color:#8a7f5c;font-size:13.5px;}
+
+  .grid-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:16px;margin-bottom:24px;}
+  .stat-card{background:#fffdf8;border:1px solid var(--line);border-radius:14px;padding:18px;position:relative;overflow:hidden;}
+  .stat-card .label{font-size:12.5px;color:#8a7f5c;font-weight:700;margin-bottom:8px;}
+  .stat-card .value{font-size:26px;font-weight:900;color:var(--teal-800);}
+  .stat-card .sub{font-size:11.5px;color:#a89a6b;margin-top:4px;}
+  .stat-card.accent{background:linear-gradient(135deg,var(--teal-800),var(--teal-700));color:#fff;}
+  .stat-card.accent .label{color:var(--gold-light);}
+  .stat-card.accent .value{color:#fff;}
+  .stat-card.accent .sub{color:#cfe6df;}
+  .stat-card.accent .progress-bar{background:rgba(255,255,255,.25);}
+  .stat-card.accent .progress-bar-fill{background:var(--gold-light);}
+
+  .card{background:#fffdf8;border:1px solid var(--line);border-radius:14px;padding:20px;margin-bottom:20px;}
+  .card h3{margin:0 0 14px;font-size:15.5px;color:var(--teal-800);font-weight:800;}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;}
+  .row .field{flex:1;min-width:150px;margin-bottom:0;}
+
+  table{width:100%;border-collapse:collapse;font-size:13.5px;}
+  th{text-align:right;padding:10px 8px;color:#8a7f5c;font-size:12px;border-bottom:2px solid var(--line);}
+  td{padding:10px 8px;border-bottom:1px solid #ece3cb;}
+  tr:last-child td{border-bottom:none;}
+  .pill{display:inline-block;padding:3px 10px;border-radius:999px;font-size:11.5px;font-weight:700;}
+  .pill-green{background:rgba(31,143,125,.15);color:var(--teal-700);}
+  .pill-red{background:rgba(168,65,47,.12);color:var(--red);}
+  .pill-gray{background:#eee7d2;color:#8a7f5c;}
+  .pill-gold{background:rgba(201,162,75,.2);color:#8a6d1f;}
+
+  .att-radio{display:flex;gap:6px;}
+  .att-opt{flex:1;text-align:center;padding:7px 4px;border-radius:8px;border:1.5px solid var(--line);cursor:pointer;font-size:11.5px;font-weight:700;color:#8a7f5c;user-select:none;}
+  .att-opt.sel-present{background:var(--teal-700);color:#fff;border-color:var(--teal-700);}
+  .att-opt.sel-excused{background:#eee7d2;color:#6b6142;border-color:#d9cba3;}
+  .att-opt.sel-unexcused{background:var(--red);color:#fff;border-color:var(--red);}
+
+  .quran-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(38px,1fr));gap:5px;max-height:460px;overflow-y:auto;padding:6px;border:1px solid var(--line);border-radius:10px;background:#fffef9;}
+  .qpage{
+    aspect-ratio:1;display:flex;align-items:center;justify-content:center;
+    border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;border:1.5px solid var(--line);
+    background:#fff;color:#a89a6b;transition:.1s;
+  }
+  .qpage:hover{transform:scale(1.08);}
+  .qpage.g3{background:var(--teal-700);color:#fff;border-color:var(--teal-700);}
+  .qpage.g2{background:#4fa896;color:#fff;border-color:#4fa896;}
+  .qpage.g1{background:var(--gold);color:#4a3a06;border-color:var(--gold);}
+  .qpage.g0{background:#8a7d54;color:#fff;border-color:#8a7d54;}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;font-size:12px;color:#8a7f5c;}
+  .legend span{display:inline-flex;align-items:center;gap:5px;}
+  .legend i{width:12px;height:12px;border-radius:3px;display:inline-block;}
+
+  .group-card{border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:12px;background:#fffdf8;}
+  .group-card .ghead{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
+  .group-card .gname{font-weight:800;color:var(--teal-800);font-size:15px;}
+  .rank-badge{width:28px;height:28px;border-radius:50%;background:var(--parchment-2);display:flex;align-items:center;justify-content:center;font-weight:900;font-size:13px;color:var(--teal-800);}
+  .rank-badge.first{background:var(--gold);color:#4a3a06;}
+  .chip{display:inline-flex;align-items:center;gap:6px;background:var(--parchment-2);padding:4px 10px;border-radius:999px;font-size:12px;margin:2px;color:var(--teal-800);}
+  .chip button{border:none;background:none;color:var(--red);cursor:pointer;font-weight:900;font-size:13px;padding:0;}
+  .weekday-picker{display:flex;gap:6px;flex-wrap:wrap;}
+  .wd{padding:8px 10px;border:1.5px solid var(--line);border-radius:8px;cursor:pointer;font-size:12.5px;font-weight:700;color:#8a7f5c;}
+  .wd.sel{background:var(--teal-700);color:#fff;border-color:var(--teal-700);}
+  .days-scroll{display:flex;gap:8px;flex-wrap:wrap;max-height:220px;overflow-y:auto;padding:4px 2px;}
+  .day-chip{position:relative;padding:9px 14px 9px 24px;border:1.5px solid var(--line);border-radius:9px;cursor:pointer;font-size:12.5px;font-weight:700;color:#6b6142;white-space:nowrap;background:#fffdf8;transition:.15s;}
+  .day-chip:hover{border-color:var(--teal-500);}
+  .day-chip::before{content:"";position:absolute;top:50%;left:8px;transform:translateY(-50%);width:7px;height:7px;border-radius:50%;background:var(--line);}
+  .day-chip.done::before{background:var(--teal-500);}
+  .day-chip.partial::before{background:var(--gold);}
+  .day-chip.sel{background:var(--teal-800);color:#fff;border-color:var(--teal-800);}
+  .day-chip.sel::before{background:#fff;}
+  .empty{text-align:center;padding:30px;color:#a89a6b;font-size:13.5px;}
+  .progress-bar{width:100%;height:9px;border-radius:999px;background:#eee7d2;overflow:hidden;margin-top:8px;}
+  .progress-bar-fill{height:100%;border-radius:999px;background:var(--teal-500);transition:width .3s ease;}
+  .progress-bar-fill.low{background:var(--red);}
+  .progress-bar-fill.mid{background:var(--gold);}
+  .progress-inline{display:flex;align-items:center;gap:8px;min-width:140px;}
+  .progress-inline .progress-bar{flex:1;margin-top:0;}
+  .progress-inline .progress-pct{font-size:12px;font-weight:800;color:var(--teal-800);white-space:nowrap;}
+  @media (max-width:800px){
+    .shell{flex-direction:column;}
+    .sidebar{width:100%;flex-direction:row;overflow-x:auto;padding:12px;}
+    .sidebar .brand2{display:none;}
+    .sidebar-foot{display:none;}
+    .nav-item{white-space:nowrap;width:auto;}
+    .main{padding:18px;}
+  }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+const LOGO_URI = "data:image/jpeg;base64,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";
+/* ==========================================================================
+   إعدادات Firebase — بدّل القيم التالية ببيانات مشروعك من Firebase Console
+   (Project settings → General → Your apps → SDK setup and configuration)
+   ========================================================================== */
+const firebaseConfig = {
+  apiKey: "AIzaSyBkSbxZCuGUUEGU16wlO6ollX9CNBZ-DXY",
+  authDomain: "aqsastudent-e2a68.firebaseapp.com",
+  databaseURL: "https://aqsastudent-e2a68-default-rtdb.firebaseio.com",
+  projectId: "aqsastudent-e2a68",
+  storageBucket: "aqsastudent-e2a68.firebasestorage.app",
+  messagingSenderId: "94508929033",
+  appId: "1:94508929033:web:07b3543d2ae806fe3428d8"
+};
+firebase.initializeApp(firebaseConfig);
+const dbRef = firebase.database().ref('quran-tracker-data-v1');
+
+const GRADES = { 'ممتاز':3, 'جيد جدا':2, 'جيد':1, 'مسمع من قبل':0 };
+const GRADE_LIST = ['ممتاز','جيد جدا','جيد','مسمع من قبل'];
+const WEEKDAYS = ['أحد','اثنين','ثلاثاء','أربعاء','خميس','جمعة','سبت'];
+const TOTAL_PAGES = 604;
+
+let data = null;
+let session = { role:null, adminIn:false, studentId:null };
+let ui = { adminTab:'overview', studentTab:'overview', selectedRecStudent:null, recDraft:null, attDate:'', attDraft:null, loginTab:'admin', loginError:'', editStudentId:null, editGroupId:null, studentAttDate:'' };
+
+function defaultData(){
+  return {
+    config:{ adminEmail:'', adminPassword:'', setupDone:false, competitionStart:'', competitionEnd:'', classStart:'', classEnd:'', attendanceDays:[0,1,2,3,4] },
+    groups:[], students:[], attendance:{}, recitation:{}
+  };
+}
+
+async function loadData(){
+  try{
+    const snap = await dbRef.get();
+    data = snap.exists() ? snap.val() : defaultData();
+  }catch(e){ console.error('load failed', e); data = defaultData(); }
+  render();
+}
+async function saveData(){
+  try{ await dbRef.set(data); }
+  catch(e){ console.error('save failed', e); alert('تعذّر حفظ البيانات، تحقق من الاتصال بالإنترنت'); }
+}
+function bindPwdToggles(){
+  document.querySelectorAll('.pwd-toggle').forEach(b=>b.onclick=()=>{
+    const inp=document.getElementById(b.dataset.target);
+    if(!inp) return;
+    if(inp.type==='password'){ inp.type='text'; b.textContent='🙈'; }
+    else { inp.type='password'; b.textContent='👁'; }
+  });
+}
+function uid(){ return Math.random().toString(36).slice(2,10); }
+function esc(s){ return String(s??'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function progressColorClass(pct){ return pct>=70?'':pct>=40?'mid':'low'; }
+function progressBarHtml(pct){
+  return `<div class="progress-bar"><div class="progress-bar-fill ${progressColorClass(pct)}" style="width:${pct}%;"></div></div>`;
+}
+function progressBarInlineHtml(pct){
+  return `<div class="progress-inline"><div class="progress-bar"><div class="progress-bar-fill ${progressColorClass(pct)}" style="width:${pct}%;"></div></div><span class="progress-pct">${pct}%</span></div>`;
+}
+
+/* ---------- points/stats helpers ---------- */
+function attendanceStats(studentId){
+  const att = data.attendance[studentId] || {};
+  let present=0, excused=0, unexcused=0, pts=0;
+  Object.values(att).forEach(v=>{
+    if(v==='present'){present++; pts+=2;}
+    else if(v==='excused'){excused++;}
+    else if(v==='unexcused'){unexcused++; pts-=1;}
+  });
+  const total = present+excused+unexcused;
+  const pct = total? Math.round((present/total)*100) : 0;
+  return {present,excused,unexcused,total,pts,pct};
+}
+function recitationStats(studentId){
+  const rec = data.recitation[studentId] || {};
+  let pts=0, completed=0;
+  Object.values(rec).forEach(g=>{ if(g && GRADES.hasOwnProperty(g)){ pts+=GRADES[g]; completed++; } });
+  return {pts, completed};
+}
+const NEW_MEMORIZATION_GRADES = ['ممتاز','جيد جدا','جيد'];
+function newMemorizationCount(studentId){
+  const rec = data.recitation[studentId] || {};
+  let count=0;
+  Object.values(rec).forEach(g=>{ if(NEW_MEMORIZATION_GRADES.includes(g)) count++; });
+  return count;
+}
+function studentPoints(studentId){
+  return attendanceStats(studentId).pts + recitationStats(studentId).pts;
+}
+function groupPoints(groupId){
+  const g = data.groups.find(g=>g.id===groupId);
+  const base = data.students.filter(s=>s.groupId===groupId).reduce((sum,s)=>sum+studentPoints(s.id),0);
+  return base + (g && g.bonusPoints ? g.bonusPoints : 0);
+}
+function groupRanking(){
+  return data.groups.map(g=>({...g, pts:groupPoints(g.id)})).sort((a,b)=>b.pts-a.pts);
+}
+function toDateStr(d){
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,'0');
+  const day = String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
+}
+function todayStr(){ return toDateStr(new Date()); }
+function competitionCountdown(){
+  const c = data.config;
+  if(!c.competitionEnd) return {state:'none'};
+  const today = todayStr();
+  if(c.competitionStart && today < c.competitionStart) return {state:'not-started', start:c.competitionStart};
+  if(today > c.competitionEnd) return {state:'ended'};
+  const diff = Math.ceil((new Date(c.competitionEnd+'T00:00:00') - new Date(today+'T00:00:00'))/86400000);
+  return {state:'running', days:diff};
+}
+function isValidAttendanceDate(dateStr){
+  if(!dateStr) return false;
+  const c = data.config;
+  if(c.classStart && dateStr < c.classStart) return false;
+  if(c.classEnd && dateStr > c.classEnd) return false;
+  const day = new Date(dateStr+'T00:00:00').getDay();
+  return c.attendanceDays.includes(day);
+}
+function classAttendanceDates(){
+  const c = data.config;
+  if(!c.classStart || !c.classEnd) return [];
+  const dates = [];
+  let cur = new Date(c.classStart+'T00:00:00');
+  const end = new Date(c.classEnd+'T00:00:00');
+  let guard = 0;
+  while(cur <= end && guard < 2000){
+    guard++;
+    if(c.attendanceDays.includes(cur.getDay())) dates.push(toDateStr(cur));
+    cur.setDate(cur.getDate()+1);
+  }
+  return dates;
+}
+function dayChipLabel(dateStr){
+  const [y,m,d] = dateStr.split('-').map(n=>parseInt(n,10));
+  const wd = WEEKDAYS[new Date(dateStr+'T00:00:00').getDay()];
+  return `${wd} ${d}/${m}`;
+}
+
+/* ---------- render root ---------- */
+function render(){
+  const app = document.getElementById('app');
+  if(!data.config.setupDone){ app.innerHTML = setupScreen(); bindSetup(); return; }
+  if(!session.role){ app.innerHTML = loginScreen(); bindLogin(); return; }
+  if(session.role==='admin'){ app.innerHTML = adminShell(); bindAdmin(); return; }
+  if(session.role==='student'){ app.innerHTML = studentShell(); bindStudent(); return; }
+}
+
+/* ---------- backup import (shared) ---------- */
+async function importBackupFile(file){
+  if(!file) return false;
+  if(!confirm('استيراد هذه النسخة سيستبدل كل البيانات الحالية. هل تريد المتابعة؟')) return false;
+  try{
+    const text = await file.text();
+    const parsed = JSON.parse(text);
+    if(!parsed || typeof parsed!=='object' || !parsed.config || !Array.isArray(parsed.students)){
+      alert('ملف غير صالح، تأكد أنه نسخة احتياطية صادرة من هذا النظام');
+      return false;
+    }
+    data = parsed;
+    await saveData();
+    alert('تم استيراد النسخة الاحتياطية بنجاح، يمكنك الآن تسجيل الدخول');
+    session = {role:null, adminIn:false, studentId:null};
+    ui.loginError='';
+    render();
+    return true;
+  }catch(e){
+    alert('تعذّر قراءة الملف، تأكد أنه بصيغة JSON صحيحة');
+    return false;
+  }
+}
+function bindBackupImport(inputId){
+  const importInput = document.getElementById(inputId);
+  if(importInput) importInput.onchange = async ()=>{
+    const file = importInput.files[0];
+    await importBackupFile(file);
+    importInput.value='';
+  };
+}
+
+/* ---------- first-run setup ---------- */
+function setupScreen(){
+  return `
+  <div class="login-wrap"><div class="login-card">
+    <div class="brand"><div class="mark"><img src="${LOGO_URI}" alt="شعار مركز الأقصى القرآني"></div><h1>مركز الأقصى القرآني</h1><p>الإعداد الأول — إنشاء حساب المشرف</p></div>
+    ${ui.loginError?`<div class="error-msg">${esc(ui.loginError)}</div>`:''}
+    <div class="field"><label>البريد الإلكتروني</label><input type="email" id="su-email" placeholder="admin@example.com"></div>
+    <div class="field"><label>كلمة المرور</label><div class="pwd-wrap"><input type="password" id="su-pass" placeholder="كلمة مرور قوية"><button type="button" class="pwd-toggle" data-target="su-pass">👁</button></div></div>
+    <button class="btn btn-primary" id="su-submit">إنشاء الحساب والمتابعة</button>
+    <div style="text-align:center;margin-top:16px;padding-top:14px;border-top:1px solid var(--line);">
+      <label class="btn btn-ghost btn-sm" style="cursor:pointer;">⬆ عندي نسخة احتياطية (JSON)، استيرادها بدل الإعداد من جديد<input type="file" id="su-import-file" accept="application/json" style="display:none;"></label>
+    </div>
+    <p class="hint">سيتم استخدام هذا البريد وكلمة المرور لاحقًا لتسجيل دخول المشرف.</p>
+  </div></div>`;
+}
+function bindSetup(){
+  document.getElementById('su-submit').onclick = async ()=>{
+    const email = document.getElementById('su-email').value.trim();
+    const pass = document.getElementById('su-pass').value;
+    if(!email || !pass){ ui.loginError='الرجاء تعبئة البريد الإلكتروني وكلمة المرور'; render(); return; }
+    data.config.adminEmail = email; data.config.adminPassword = pass; data.config.setupDone = true;
+    ui.loginError='';
+    await saveData(); render();
+  };
+  bindPwdToggles();
+  bindBackupImport('su-import-file');
+}
+
+/* ---------- login ---------- */
+function loginScreen(){
+  return `
+  <div class="login-wrap"><div class="login-card">
+    <div class="brand"><div class="mark"><img src="${LOGO_URI}" alt="شعار مركز الأقصى القرآني"></div><h1>مركز الأقصى القرآني</h1><p>منصة متابعة الحفظ والحضور</p></div>
+    <div class="tabs">
+      <button class="tab-btn ${ui.loginTab==='admin'?'active':''}" data-tab="admin">المشرف</button>
+      <button class="tab-btn ${ui.loginTab==='student'?'active':''}" data-tab="student">الطالب</button>
+    </div>
+    ${ui.loginError?`<div class="error-msg">${esc(ui.loginError)}</div>`:''}
+    ${ui.loginTab==='admin' ? `
+      <div class="field"><label>البريد الإلكتروني</label><input type="email" id="lg-email"></div>
+      <div class="field"><label>كلمة المرور</label><div class="pwd-wrap"><input type="password" id="lg-pass"><button type="button" class="pwd-toggle" data-target="lg-pass">👁</button></div></div>
+    ` : `
+      <div class="field"><label>اسم الطالب (اسم المستخدم)</label><input type="text" id="lg-user"></div>
+      <div class="field"><label>كلمة المرور</label><div class="pwd-wrap"><input type="password" id="lg-spass"><button type="button" class="pwd-toggle" data-target="lg-spass">👁</button></div></div>
+    `}
+    <button class="btn btn-primary" id="lg-submit">تسجيل الدخول</button>
+    <div style="text-align:center;margin-top:16px;padding-top:14px;border-top:1px solid var(--line);">
+      <label class="btn btn-ghost btn-sm" style="cursor:pointer;">⬆ استيراد نسخة احتياطية (JSON)<input type="file" id="lg-import-file" accept="application/json" style="display:none;"></label>
+    </div>
+  </div></div>`;
+}
+function bindLogin(){
+  bindPwdToggles();
+  bindBackupImport('lg-import-file');
+  document.querySelectorAll('.tab-btn').forEach(b=>b.onclick=()=>{ ui.loginTab=b.dataset.tab; ui.loginError=''; render(); });
+  document.getElementById('lg-submit').onclick = ()=>{
+    if(ui.loginTab==='admin'){
+      const email=document.getElementById('lg-email').value.trim();
+      const pass=document.getElementById('lg-pass').value;
+      if(email===data.config.adminEmail && pass===data.config.adminPassword){
+        session.role='admin'; ui.loginError=''; render();
+      } else { ui.loginError='البريد الإلكتروني أو كلمة المرور غير صحيحة'; render(); }
+    } else {
+      const user=document.getElementById('lg-user').value.trim();
+      const pass=document.getElementById('lg-spass').value;
+      const s = data.students.find(s=>s.name===user && s.password===pass);
+      if(s){ session.role='student'; session.studentId=s.id; ui.loginError=''; render(); }
+      else { ui.loginError='اسم الطالب أو كلمة المرور غير صحيحة'; render(); }
+    }
+  };
+}
+function logout(){ session={role:null,studentId:null}; ui.loginError=''; render(); }
+
+/* ---------- admin shell ---------- */
+const ADMIN_NAV = [
+  {k:'overview', ic:'◈', label:'نظرة عامة'},
+  {k:'students', ic:'◍', label:'الطلاب'},
+  {k:'incentive', ic:'✦', label:'الحافز (المجموعات)'},
+  {k:'attendance', ic:'▤', label:'الحضور والغياب'},
+  {k:'recitation', ic:'◫', label:'التسميع'},
+  {k:'settings', ic:'⚙', label:'الإعدادات'},
+];
+function adminShell(){
+  return `<div class="shell">
+    <div class="sidebar">
+      <div class="brand2"><div class="mark"><img src="${LOGO_URI}" alt="الشعار"></div><div><b>مركز الأقصى القرآني</b><span>لوحة المشرف</span></div></div>
+      ${ADMIN_NAV.map(n=>`<button class="nav-item ${ui.adminTab===n.k?'active':''}" data-nav="${n.k}"><span class="ic">${n.ic}</span> ${n.label}</button>`).join('')}
+      <div class="sidebar-foot"><button class="logout-btn" id="logout-btn">تسجيل الخروج</button></div>
+    </div>
+    <div class="main">${adminPage()}</div>
+  </div>`;
+}
+function adminPage(){
+  switch(ui.adminTab){
+    case 'overview': return pageOverviewAdmin();
+    case 'students': return pageStudents();
+    case 'incentive': return pageIncentive();
+    case 'attendance': return pageAttendance();
+    case 'recitation': return pageRecitation();
+    case 'settings': return pageSettings();
+    default: return '';
+  }
+}
+function bindAdmin(){
+  document.querySelectorAll('[data-nav]').forEach(b=>b.onclick=()=>{ ui.adminTab=b.dataset.nav; ui.recDraft=null; ui.attDraft=null; ui.editStudentId=null; ui.editGroupId=null; render(); });
+  document.getElementById('logout-btn').onclick = logout;
+  const p = ui.adminTab;
+  if(p==='students') bindStudents();
+  if(p==='incentive') bindIncentive();
+  if(p==='attendance') bindAttendance();
+  if(p==='recitation') bindRecitation();
+  if(p==='settings') bindSettings();
+}
+
+/* ---------- overview ---------- */
+function pageOverviewAdmin(){
+  const totalStudents = data.students.length;
+  const totalGroups = data.groups.length;
+  const totalNewPages = data.students.reduce((s,st)=>s+newMemorizationCount(st.id),0);
+  const ranking = groupRanking();
+  return `
+  <div class="page-head"><h2>نظرة عامة</h2><p>ملخص سريع عن حالة المتابعة الآن</p></div>
+  <div class="grid-cards">
+    <div class="stat-card accent"><div class="label">عدد الطلاب</div><div class="value">${totalStudents}</div></div>
+    <div class="stat-card"><div class="label">عدد المجموعات</div><div class="value">${totalGroups}</div></div>
+    <div class="stat-card"><div class="label">التسميع الجديد</div><div class="value">${totalNewPages}</div><div class="sub">من أصل ${TOTAL_PAGES}×${totalStudents||0}</div></div>
+    <div class="stat-card"><div class="label">فترة المنافسة</div><div class="value" style="font-size:15px;">${data.config.competitionStart||'—'} إلى ${data.config.competitionEnd||'—'}</div></div>
+  </div>
+  <div class="card">
+    <h3>ترتيب مجموعات الحافز</h3>
+    ${ranking.length? ranking.map((g,i)=>`
+      <div class="group-card"><div class="ghead">
+        <div style="display:flex;align-items:center;gap:10px;"><div class="rank-badge ${i===0?'first':''}">${i+1}</div><div class="gname">${esc(g.name)}</div></div>
+        <div class="pill pill-gold">${g.pts} نقطة</div>
+      </div></div>`).join('') : `<div class="empty">لا توجد مجموعات بعد — أضف مجموعات من قسم «الحافز»</div>`}
+  </div>`;
+}
+
+/* ---------- students ---------- */
+function pageStudents(){
+  return `
+  <div class="page-head"><h2>الطلاب</h2><p>إضافة الطلاب وتحديد بيانات دخولهم</p></div>
+  <div class="card">
+    <h3>إضافة طالب جديد</h3>
+    <div class="row">
+      <div class="field"><label>اسم الطالب</label><input type="text" id="ns-name" placeholder="مثال: أحمد محمد"></div>
+      <div class="field"><label>الصف</label><input type="text" id="ns-class" placeholder="مثال: الصف السابع"></div>
+      <div class="field"><label>كلمة المرور</label><input type="text" id="ns-pass" placeholder="كلمة مرور الطالب"></div>
+      <button class="btn btn-gold" id="ns-add">إضافة الطالب</button>
+    </div>
+    <p class="hint" style="text-align:right;">اسم الطالب هو نفسه اسم تسجيل الدخول الذي سيستخدمه.</p>
+  </div>
+  <div class="card">
+    <h3>قائمة الطلاب (${data.students.length})</h3>
+    ${data.students.length? `<table><thead><tr><th>الاسم</th><th>الصف</th><th>المجموعة</th><th>النقاط / كلمة المرور</th><th></th></tr></thead><tbody>
+      ${data.students.map(s=>{
+        const g = data.groups.find(g=>g.id===s.groupId);
+        if(ui.editStudentId===s.id){
+          return `<tr>
+            <td><input type="text" class="edit-name" value="${esc(s.name)}"></td>
+            <td><input type="text" class="edit-class" value="${esc(s.class||'')}"></td>
+            <td>${g?`<span class="pill pill-green">${esc(g.name)}</span>`:'<span class="pill pill-gray">بدون مجموعة</span>'}</td>
+            <td><input type="text" class="edit-pass" value="${esc(s.password)}" placeholder="كلمة المرور"></td>
+            <td style="white-space:nowrap;"><button class="btn btn-gold btn-sm" data-save-student="${s.id}">حفظ</button> <button class="btn btn-ghost btn-sm" data-cancel-edit="1">إلغاء</button></td>
+          </tr>`;
+        }
+        return `<tr>
+          <td>${esc(s.name)}</td><td>${esc(s.class||'—')}</td>
+          <td>${g?`<span class="pill pill-green">${esc(g.name)}</span>`:'<span class="pill pill-gray">بدون مجموعة</span>'}</td>
+          <td>${studentPoints(s.id)} نقطة</td>
+          <td style="white-space:nowrap;"><button class="btn btn-ghost btn-sm" data-edit-student="${s.id}">تعديل</button> <button class="btn btn-danger btn-sm" data-del-student="${s.id}">حذف</button></td>
+        </tr>`;
+      }).join('')}
+    </tbody></table>` : `<div class="empty">لم تتم إضافة طلاب بعد</div>`}
+  </div>`;
+}
+function bindStudents(){
+  document.getElementById('ns-add').onclick = async ()=>{
+    const name = document.getElementById('ns-name').value.trim();
+    const klass = document.getElementById('ns-class').value.trim();
+    const pass = document.getElementById('ns-pass').value;
+    if(!name || !pass){ alert('الرجاء إدخال اسم الطالب وكلمة المرور'); return; }
+    if(data.students.some(s=>s.name===name)){ alert('يوجد طالب بنفس الاسم مسبقًا، الرجاء اختيار اسم مختلف أو إضافة توضيح'); return; }
+    data.students.push({id:uid(), name, class:klass, password:pass, groupId:null});
+    await saveData(); render();
+  };
+  document.querySelectorAll('[data-del-student]').forEach(b=>b.onclick=async ()=>{
+    if(!confirm('هل تريد حذف هذا الطالب؟')) return;
+    const id=b.dataset.delStudent;
+    data.students = data.students.filter(s=>s.id!==id);
+    delete data.attendance[id]; delete data.recitation[id];
+    await saveData(); render();
+  });
+  document.querySelectorAll('[data-edit-student]').forEach(b=>b.onclick=()=>{
+    ui.editStudentId = b.dataset.editStudent; render();
+  });
+  document.querySelectorAll('[data-cancel-edit]').forEach(b=>b.onclick=()=>{
+    ui.editStudentId = null; render();
+  });
+  document.querySelectorAll('[data-save-student]').forEach(b=>b.onclick=async ()=>{
+    const id = b.dataset.saveStudent;
+    const row = b.closest('tr');
+    const name = row.querySelector('.edit-name').value.trim();
+    const klass = row.querySelector('.edit-class').value.trim();
+    const pass = row.querySelector('.edit-pass').value;
+    if(!name || !pass){ alert('الرجاء تعبئة الاسم وكلمة المرور'); return; }
+    if(data.students.some(s=>s.name===name && s.id!==id)){ alert('يوجد طالب آخر بنفس الاسم'); return; }
+    const s = data.students.find(s=>s.id===id);
+    s.name=name; s.class=klass; s.password=pass;
+    ui.editStudentId = null;
+    await saveData(); render();
+  });
+}
+
+/* ---------- incentive / groups ---------- */
+function pageIncentive(){
+  const ranking = groupRanking();
+  const unassigned = data.students.filter(s=>!s.groupId);
+  const cd = competitionCountdown();
+  let cdHtml = '';
+  if(cd.state==='running') cdHtml = `<div class="stat-card accent"><div class="label">الوقت المتبقي لنهاية المنافسة</div><div class="value">${cd.days} يوم</div><div class="sub">تنتهي بتاريخ ${data.config.competitionEnd}</div></div>`;
+  else if(cd.state==='not-started') cdHtml = `<div class="stat-card"><div class="label">المنافسة لم تبدأ بعد</div><div class="value" style="font-size:16px;">تبدأ ${cd.start}</div></div>`;
+  else if(cd.state==='ended') cdHtml = `<div class="stat-card"><div class="label">حالة المنافسة</div><div class="value" style="font-size:16px;">انتهت المنافسة</div></div>`;
+  else cdHtml = `<div class="stat-card"><div class="label">فترة المنافسة</div><div class="value" style="font-size:15px;">لم تُحدَّد بعد</div><div class="sub">حدّدها من قسم «الإعدادات»</div></div>`;
+  return `
+  <div class="page-head"><h2>الحافز — مجموعات المنافسة</h2><p>أنشئ مجموعات ووزّع الطلاب عليها لتحتسب نقاط التسميع والحضور تلقائيًا</p></div>
+  <div class="grid-cards">${cdHtml}</div>
+  <div class="card">
+    <h3>إضافة مجموعة جديدة</h3>
+    <div class="row"><div class="field"><label>اسم المجموعة</label><input type="text" id="ng-name" placeholder="مثال: مجموعة الفردوس"></div>
+    <button class="btn btn-gold" id="ng-add">إضافة</button></div>
+  </div>
+  ${ranking.length? ranking.map((g,i)=>{
+    const members = data.students.filter(s=>s.groupId===g.id);
+    const bonus = g.bonusPoints||0;
+    return `<div class="group-card">
+      <div class="ghead">
+        ${ui.editGroupId===g.id? `
+        <div style="display:flex;align-items:center;gap:8px;flex:1;"><div class="rank-badge ${i===0?'first':''}">${i+1}</div>
+          <input type="text" class="edit-group-name" data-group="${g.id}" value="${esc(g.name)}" style="flex:1;max-width:220px;">
+          <button class="btn btn-gold btn-sm" data-save-group="${g.id}">حفظ</button>
+          <button class="btn btn-ghost btn-sm" data-cancel-edit-group="1">إلغاء</button>
+        </div>` : `
+        <div style="display:flex;align-items:center;gap:10px;"><div class="rank-badge ${i===0?'first':''}">${i+1}</div><div class="gname">${esc(g.name)}</div></div>`}
+        <div style="display:flex;align-items:center;gap:8px;">
+          ${bonus? `<span class="pill ${bonus>0?'pill-green':'pill-red'}">${bonus>0?'+':''}${bonus} يدوي</span>`:''}
+          <div class="pill pill-gold">${g.pts} نقطة</div>
+          ${ui.editGroupId===g.id? '' : `<button class="btn btn-ghost btn-sm" data-edit-group="${g.id}">تعديل الاسم</button>`}
+          <button class="btn btn-danger btn-sm" data-del-group="${g.id}">حذف المجموعة</button></div>
+      </div>
+      <div style="margin-bottom:8px;">
+        ${members.length? members.map(m=>`<span class="chip">${esc(m.name)} <button data-remove-member="${m.id}">×</button></span>`).join('') : '<span style="color:#a89a6b;font-size:12.5px;">لا يوجد طلاب في هذه المجموعة</span>'}
+      </div>
+      <div class="row">
+        <select class="add-member-select" data-group="${g.id}" style="flex:1;min-width:150px;">
+          <option value="">— إضافة طالب —</option>
+          ${unassigned.map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join('')}
+        </select>
+        <button class="btn btn-ghost btn-sm add-member-btn" data-group="${g.id}">إضافة</button>
+      </div>
+      <div class="row" style="margin-top:10px;border-top:1px dashed var(--line);padding-top:10px;">
+        <input type="number" class="bonus-amount" data-group="${g.id}" placeholder="عدد النقاط (+ أو -)" style="max-width:170px;">
+        <input type="text" class="bonus-note" data-group="${g.id}" placeholder="السبب (اختياري)" style="flex:1;min-width:130px;">
+        <button class="btn btn-gold btn-sm bonus-add-btn" data-group="${g.id}">إضافة نقاط يدويًا</button>
+      </div>
+      ${g.bonusLog && g.bonusLog.length? `<div style="margin-top:8px;font-size:11.5px;color:#8a7f5c;">
+        ${g.bonusLog.slice(-3).reverse().map(l=>`<div>• ${l.amount>0?'+':''}${l.amount} نقطة${l.note?(' — '+esc(l.note)):''} <span style="color:#c2b78a;">(${l.date})</span></div>`).join('')}
+      </div>` : ''}
+    </div>`;
+  }).join('') : `<div class="empty">لم تُنشأ أي مجموعة بعد</div>`}`;
+}
+function bindIncentive(){
+  document.getElementById('ng-add').onclick = async ()=>{
+    const name = document.getElementById('ng-name').value.trim();
+    if(!name) return;
+    data.groups.push({id:uid(), name, bonusPoints:0, bonusLog:[]});
+    await saveData(); render();
+  };
+  document.querySelectorAll('[data-del-group]').forEach(b=>b.onclick=async ()=>{
+    if(!confirm('حذف هذه المجموعة؟ سيصبح أعضاؤها بدون مجموعة.')) return;
+    const id=b.dataset.delGroup;
+    data.groups = data.groups.filter(g=>g.id!==id);
+    data.students.forEach(s=>{ if(s.groupId===id) s.groupId=null; });
+    await saveData(); render();
+  });
+  document.querySelectorAll('[data-edit-group]').forEach(b=>b.onclick=()=>{
+    ui.editGroupId = b.dataset.editGroup; render();
+  });
+  document.querySelectorAll('[data-cancel-edit-group]').forEach(b=>b.onclick=()=>{
+    ui.editGroupId = null; render();
+  });
+  document.querySelectorAll('[data-save-group]').forEach(b=>b.onclick=async ()=>{
+    const id = b.dataset.saveGroup;
+    const input = document.querySelector(`.edit-group-name[data-group="${id}"]`);
+    const name = input.value.trim();
+    if(!name){ alert('الرجاء إدخال اسم المجموعة'); return; }
+    const g = data.groups.find(g=>g.id===id);
+    if(g) g.name = name;
+    ui.editGroupId = null;
+    await saveData(); render();
+  });
+  document.querySelectorAll('[data-remove-member]').forEach(b=>b.onclick=async ()=>{
+    const id=b.dataset.removeMember;
+    const s = data.students.find(s=>s.id===id);
+    if(s) s.groupId=null;
+    await saveData(); render();
+  });
+  document.querySelectorAll('.add-member-btn').forEach(b=>b.onclick=async ()=>{
+    const gid=b.dataset.group;
+    const sel=document.querySelector(`.add-member-select[data-group="${gid}"]`);
+    if(!sel.value) return;
+    const s = data.students.find(s=>s.id===sel.value);
+    if(s) s.groupId=gid;
+    await saveData(); render();
+  });
+  document.querySelectorAll('.bonus-add-btn').forEach(b=>b.onclick=async ()=>{
+    const gid = b.dataset.group;
+    const amountInput = document.querySelector(`.bonus-amount[data-group="${gid}"]`);
+    const noteInput = document.querySelector(`.bonus-note[data-group="${gid}"]`);
+    const amount = parseInt(amountInput.value, 10);
+    if(!amount || isNaN(amount)){ alert('أدخل عدد نقاط صحيح (موجب للإضافة أو سالب للخصم)'); return; }
+    const g = data.groups.find(g=>g.id===gid);
+    if(!g) return;
+    g.bonusPoints = (g.bonusPoints||0) + amount;
+    if(!g.bonusLog) g.bonusLog = [];
+    g.bonusLog.push({amount, note: noteInput.value.trim(), date: todayStr()});
+    await saveData(); render();
+  });
+}
+
+/* ---------- attendance ---------- */
+function pageAttendance(){
+  const c = data.config;
+  const dates = classAttendanceDates();
+  if(!dates.length){
+    return `<div class="page-head"><h2>الحضور والغياب</h2><p>حضور = نقطتان، غياب بعذر = صفر، غياب بدون عذر = خصم نقطة</p></div>
+    <div class="card"><div class="empty">حدّد تاريخ بداية ونهاية الفصل وأيام الدوام من قسم «الإعدادات» أولًا لتظهر أيام الدوام هون</div></div>`;
+  }
+  if(!ui.attDate || !dates.includes(ui.attDate)) ui.attDate = dates.includes(todayStr()) ? todayStr() : dates[0];
+  if(!ui.attDraft || ui.attDraft._date!==ui.attDate){
+    ui.attDraft = {_date: ui.attDate};
+    data.students.forEach(s=>{ ui.attDraft[s.id] = (data.attendance[s.id]||{})[ui.attDate] || null; });
+  }
+  const dayChips = dates.map(d=>{
+    const recorded = data.students.length>0 && data.students.every(s=>(data.attendance[s.id]||{})[d]);
+    const partial = !recorded && data.students.some(s=>(data.attendance[s.id]||{})[d]);
+    return `<div class="day-chip ${d===ui.attDate?'sel':''} ${recorded?'done':''} ${partial?'partial':''}" data-date="${d}">${dayChipLabel(d)}</div>`;
+  }).join('');
+  return `
+  <div class="page-head"><h2>الحضور والغياب</h2><p>حضور = نقطتان، غياب بعذر = صفر، غياب بدون عذر = خصم نقطة</p></div>
+  <div class="card">
+    <h3>أيام الدوام ضمن فترة الفصل</h3>
+    <div class="days-scroll">${dayChips}</div>
+    <div class="legend" style="margin-top:10px;">
+      <span><i style="background:var(--teal-500);border-radius:50%;"></i> تم تسجيل الجميع</span>
+      <span><i style="background:var(--gold);border-radius:50%;"></i> تسجيل جزئي</span>
+      <span><i style="background:var(--line);border-radius:50%;"></i> لم يُسجَّل بعد</span>
+    </div>
+  </div>
+  ${!data.students.length ? `<div class="card"><div class="empty">أضف طلابًا أولًا من قسم «الطلاب»</div></div>` : `
+  <div class="card">
+    <h3>تسجيل يوم: ${dayChipLabel(ui.attDate)}</h3>
+    <table><thead><tr><th>الطالب</th><th>نسبة الحضور</th><th>الحالة</th></tr></thead><tbody>
+      ${data.students.map(s=>{
+        const v = ui.attDraft[s.id];
+        const pct = attendanceStats(s.id).pct;
+        return `<tr><td>${esc(s.name)}</td><td>${progressBarInlineHtml(pct)}</td><td>
+          <div class="att-radio">
+            <div class="att-opt ${v==='present'?'sel-present':''}" data-att="${s.id}" data-val="present">حاضر</div>
+            <div class="att-opt ${v==='excused'?'sel-excused':''}" data-att="${s.id}" data-val="excused">غياب بعذر</div>
+            <div class="att-opt ${v==='unexcused'?'sel-unexcused':''}" data-att="${s.id}" data-val="unexcused">غياب بدون عذر</div>
+          </div></td></tr>`;
+      }).join('')}
+    </tbody></table>
+    <div style="margin-top:16px;"><button class="btn btn-primary" id="att-save" style="width:auto;padding-inline:26px;">حفظ حضور هذا اليوم</button></div>
+  </div>`}`;
+}
+function bindAttendance(){
+  document.querySelectorAll('[data-date]').forEach(el=>el.onclick=()=>{
+    ui.attDate = el.dataset.date; ui.attDraft=null; render();
+  });
+  document.querySelectorAll('[data-att]').forEach(el=>el.onclick=()=>{
+    const id=el.dataset.att, val=el.dataset.val;
+    ui.attDraft[id] = (ui.attDraft[id]===val) ? null : val;
+    render();
+  });
+  const saveBtn = document.getElementById('att-save');
+  if(saveBtn) saveBtn.onclick = async ()=>{
+    Object.entries(ui.attDraft).forEach(([sid,val])=>{
+      if(sid==='_date') return;
+      if(!data.attendance[sid]) data.attendance[sid]={};
+      if(val) data.attendance[sid][ui.attDate]=val; else delete data.attendance[sid][ui.attDate];
+    });
+    await saveData();
+    alert('تم حفظ الحضور بنجاح');
+    render();
+  };
+}
+
+/* ---------- recitation ---------- */
+function pageRecitation(){
+  if(!data.students.length) return `<div class="page-head"><h2>التسميع</h2></div><div class="card"><div class="empty">أضف طلابًا أولًا من قسم «الطلاب»</div></div>`;
+  if(!ui.selectedRecStudent) ui.selectedRecStudent = data.students[0].id;
+  if(!ui.recDraft || ui.recDraft._sid !== ui.selectedRecStudent){
+    ui.recDraft = Object.assign({_sid: ui.selectedRecStudent}, data.recitation[ui.selectedRecStudent]||{});
+  }
+  const st = recitationStatsFromDraft(ui.recDraft);
+  let cells = '';
+  for(let p=1;p<=TOTAL_PAGES;p++){
+    const g = ui.recDraft[p];
+    const cls = g==='ممتاز'?'g3':g==='جيد جدا'?'g2':g==='جيد'?'g1':g==='مسمع من قبل'?'g0':'';
+    cells += `<div class="qpage ${cls}" data-page="${p}" title="صفحة ${p}${g? ' — '+g:''}">${p}</div>`;
+  }
+  return `
+  <div class="page-head"><h2>التسميع</h2><p>604 صفحة — اضغط على الصفحة لتدوير التقييم: ممتاز ← جيد جدًا ← جيد ← مسمّع من قبل ← بدون</p></div>
+  <div class="card">
+    <div class="row">
+      <div class="field"><label>اختر الطالب</label>
+        <select id="rec-student">${data.students.map(s=>`<option value="${s.id}" ${s.id===ui.selectedRecStudent?'selected':''}>${esc(s.name)}</option>`).join('')}</select>
+      </div>
+    </div>
+  </div>
+  <div class="grid-cards">
+    <div class="stat-card"><div class="label">صفحات مُنجزة</div><div class="value">${st.completed}/${TOTAL_PAGES}</div></div>
+    <div class="stat-card accent"><div class="label">نقاط التسميع</div><div class="value">${st.pts}</div></div>
+  </div>
+  <div class="card">
+    <div class="quran-grid">${cells}</div>
+    <div class="legend">
+      <span><i style="background:var(--teal-700)"></i> ممتاز (3)</span>
+      <span><i style="background:#4fa896"></i> جيد جدًا (2)</span>
+      <span><i style="background:var(--gold)"></i> جيد (1)</span>
+      <span><i style="background:#8a7d54"></i> مسمّع من قبل (0)</span>
+      <span><i style="background:#fff;border:1.5px solid var(--line)"></i> لم يُسمّع بعد</span>
+    </div>
+    <div style="margin-top:16px;"><button class="btn btn-primary" id="rec-save" style="width:auto;padding-inline:26px;">حفظ تقدم التسميع</button></div>
+  </div>`;
+}
+function recitationStatsFromDraft(draft){
+  let pts=0, completed=0;
+  for(const k in draft){ if(k==='_sid') continue; const g=draft[k]; if(g && GRADES.hasOwnProperty(g)){ pts+=GRADES[g]; completed++; } }
+  return {pts, completed};
+}
+function bindRecitation(){
+  const sel = document.getElementById('rec-student');
+  if(sel) sel.onchange = ()=>{ ui.selectedRecStudent = sel.value; ui.recDraft=null; render(); };
+  document.querySelectorAll('[data-page]').forEach(el=>el.onclick=()=>{
+    const p = el.dataset.page;
+    const cur = ui.recDraft[p];
+    const idx = GRADE_LIST.indexOf(cur);
+    const next = idx===-1 ? GRADE_LIST[0] : (idx+1<GRADE_LIST.length ? GRADE_LIST[idx+1] : null);
+    if(next) ui.recDraft[p]=next; else delete ui.recDraft[p];
+    const grid = document.querySelector('.quran-grid');
+    const gridScroll = grid ? grid.scrollTop : 0;
+    const winScroll = window.scrollY;
+    render();
+    const newGrid = document.querySelector('.quran-grid');
+    if(newGrid) newGrid.scrollTop = gridScroll;
+    window.scrollTo(0, winScroll);
+  });
+  const saveBtn = document.getElementById('rec-save');
+  if(saveBtn) saveBtn.onclick = async ()=>{
+    const sid = ui.selectedRecStudent;
+    const clean = {}; Object.entries(ui.recDraft).forEach(([k,v])=>{ if(k!=='_sid') clean[k]=v; });
+    data.recitation[sid] = clean;
+    await saveData();
+    alert('تم حفظ تقدم التسميع');
+    render();
+  };
+}
+
+/* ---------- settings ---------- */
+function pageSettings(){
+  const c = data.config;
+  return `
+  <div class="page-head"><h2>الإعدادات</h2><p>تواريخ الفصل والمنافسة، أيام الدوام، وبيانات حساب المشرف</p></div>
+  <div class="card">
+    <h3>بيانات حساب المشرف</h3>
+    <div class="row">
+      <div class="field"><label>البريد الإلكتروني</label><input type="email" id="set-email" value="${esc(c.adminEmail)}"></div>
+      <div class="field"><label>كلمة المرور</label><div class="pwd-wrap"><input type="password" id="set-pass" value="${esc(c.adminPassword)}"><button type="button" class="pwd-toggle" data-target="set-pass">👁</button></div></div>
+    </div>
+  </div>
+  <div class="card">
+    <h3>فترة الفصل الدراسي</h3>
+    <div class="row">
+      <div class="field"><label>تاريخ البداية</label><input type="date" id="set-cs" value="${c.classStart}"></div>
+      <div class="field"><label>تاريخ النهاية</label><input type="date" id="set-ce" value="${c.classEnd}"></div>
+    </div>
+  </div>
+  <div class="card">
+    <h3>فترة المنافسة (الحافز)</h3>
+    <div class="row">
+      <div class="field"><label>تاريخ البداية</label><input type="date" id="set-ms" value="${c.competitionStart}"></div>
+      <div class="field"><label>تاريخ النهاية</label><input type="date" id="set-me" value="${c.competitionEnd}"></div>
+    </div>
+  </div>
+  <div class="card">
+    <h3>أيام الدوام</h3>
+    <div class="weekday-picker">${WEEKDAYS.map((w,i)=>`<div class="wd ${c.attendanceDays.includes(i)?'sel':''}" data-day="${i}">${w}</div>`).join('')}</div>
+  </div>
+  <button class="btn btn-primary" id="set-save" style="width:auto;padding-inline:26px;">حفظ الإعدادات</button>
+  <div class="card" style="margin-top:20px;">
+    <h3>نسخة احتياطية من البيانات</h3>
+    <p class="hint" style="text-align:right;margin:0 0 14px;">هاي البيانات ما بيشوفها إلا حساب المشرف. صدّرها بشكل دوري كملف JSON على جهازك كنسخة احتياطية، وتقدر ترجّعها لاحقًا لو احتجت.</p>
+    <div class="row">
+      <button class="btn btn-gold btn-sm" id="export-btn">⬇ تصدير نسخة احتياطية (JSON)</button>
+      <label class="btn btn-ghost btn-sm" style="cursor:pointer;">⬆ استيراد نسخة احتياطية<input type="file" id="import-file" accept="application/json" style="display:none;"></label>
+    </div>
+  </div>`;
+}
+function bindSettings(){
+  bindPwdToggles();
+  document.querySelectorAll('[data-day]').forEach(el=>el.onclick=async ()=>{
+    const d = parseInt(el.dataset.day);
+    const arr = data.config.attendanceDays;
+    const i = arr.indexOf(d);
+    if(i>-1) arr.splice(i,1); else arr.push(d);
+    await saveData();
+    render();
+  });
+  document.getElementById('set-save').onclick = async ()=>{
+    data.config.adminEmail = document.getElementById('set-email').value.trim();
+    data.config.adminPassword = document.getElementById('set-pass').value;
+    data.config.classStart = document.getElementById('set-cs').value;
+    data.config.classEnd = document.getElementById('set-ce').value;
+    data.config.competitionStart = document.getElementById('set-ms').value;
+    data.config.competitionEnd = document.getElementById('set-me').value;
+    await saveData();
+    alert('تم حفظ الإعدادات');
+    render();
+  };
+  document.getElementById('export-btn').onclick = ()=>{
+    const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `منارة-الحفظ-نسخة-احتياطية-${todayStr()}.json`;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  };
+  bindBackupImport('import-file');
+}
+
+/* ---------- student shell ---------- */
+const STUDENT_NAV = [
+  {k:'overview', ic:'◈', label:'إنجازاتي'},
+  {k:'hifzi', ic:'◫', label:'حفظي'},
+  {k:'incentive', ic:'🏆', label:'الحافز'},
+  {k:'attendance', ic:'🗓', label:'الحضور والغياب'},
+];
+function studentShell(){
+  const s = data.students.find(s=>s.id===session.studentId);
+  if(!s) return `<div class="empty">تعذر إيجاد بيانات الطالب</div>`;
+  const pages = { overview: pageStudentOverview, hifzi: pageStudentHifzi, incentive: pageStudentIncentive, attendance: pageStudentAttendance };
+  const pageFn = pages[ui.studentTab] || pageStudentOverview;
+  return `<div class="shell">
+    <div class="sidebar">
+      <div class="brand2"><div class="mark"><img src="${LOGO_URI}" alt="الشعار"></div><div><b>مركز الأقصى القرآني</b><span>صفحة الطالب</span></div></div>
+      ${STUDENT_NAV.map(n=>`<button class="nav-item ${ui.studentTab===n.k?'active':''}" data-snav="${n.k}"><span class="ic">${n.ic}</span> ${n.label}</button>`).join('')}
+      <div class="sidebar-foot"><button class="logout-btn" id="logout-btn">تسجيل الخروج</button></div>
+    </div>
+    <div class="main">${pageFn(s)}</div>
+  </div>`;
+}
+function pageStudentOverview(s){
+  const att = attendanceStats(s.id);
+  const rec = recitationStats(s.id);
+  const group = data.groups.find(g=>g.id===s.groupId);
+  const ranking = groupRanking();
+  const myRankIdx = group ? ranking.findIndex(g=>g.id===group.id) : -1;
+  return `
+      <div class="page-head"><h2>أهلًا، ${esc(s.name)}</h2><p>${esc(s.class||'')} ${group?' • مجموعة '+esc(group.name):''}</p></div>
+      <div class="grid-cards">
+        <div class="stat-card accent"><div class="label">نسبة الحضور</div><div class="value">${att.pct}%</div><div class="sub">${att.present} حضور من ${att.total} يوم مسجّل</div>${progressBarHtml(att.pct)}</div>
+        <div class="stat-card"><div class="label">غياب بعذر</div><div class="value">${att.excused}</div></div>
+        <div class="stat-card"><div class="label">غياب بدون عذر</div><div class="value">${att.unexcused}</div></div>
+        <div class="stat-card"><div class="label">صفحات مُنجزة</div><div class="value">${rec.completed}/${TOTAL_PAGES}</div></div>
+      </div>
+      ${group? `<div class="card">
+        <h3>مجموعتي في الحافز</h3>
+        <div class="group-card"><div class="ghead">
+          <div style="display:flex;align-items:center;gap:10px;"><div class="rank-badge ${myRankIdx===0?'first':''}">${myRankIdx+1}</div><div class="gname">${esc(group.name)}</div></div>
+          <div class="pill pill-gold">${ranking[myRankIdx]?.pts??0} نقطة</div>
+        </div>
+        <p style="margin:6px 0 0;font-size:12.5px;color:#8a7f5c;">ترتيب مجموعتي: ${myRankIdx+1} من أصل ${ranking.length} مجموعة متنافسة — التفاصيل الكاملة بصفحة «الحافز»</p>
+        </div>
+      </div>` : ''}`;
+}
+function pageStudentIncentive(s){
+  const group = data.groups.find(g=>g.id===s.groupId);
+  const ranking = groupRanking();
+  const myRankIdx = group ? ranking.findIndex(g=>g.id===group.id) : -1;
+  const cd = competitionCountdown();
+  let cdHtml = '';
+  if(cd.state==='running') cdHtml = `<div class="stat-card accent"><div class="label">الوقت المتبقي لنهاية الحافز</div><div class="value">${cd.days} يوم</div><div class="sub">تنتهي بتاريخ ${data.config.competitionEnd}</div></div>`;
+  else if(cd.state==='not-started') cdHtml = `<div class="stat-card"><div class="label">الحافز لم يبدأ بعد</div><div class="value" style="font-size:16px;">يبدأ ${cd.start}</div></div>`;
+  else if(cd.state==='ended') cdHtml = `<div class="stat-card"><div class="label">حالة الحافز</div><div class="value" style="font-size:16px;">انتهى الحافز</div></div>`;
+  else cdHtml = `<div class="stat-card"><div class="label">فترة الحافز</div><div class="value" style="font-size:15px;">لم تُحدَّد بعد</div></div>`;
+  return `
+      <div class="page-head"><h2>الحافز</h2><p>مجموعتي وترتيبها بين المجموعات المتنافسة</p></div>
+      <div class="grid-cards">${cdHtml}</div>
+      <div class="card">
+        <h3>مجموعتي في الحافز</h3>
+        ${group? `
+          <div class="group-card"><div class="ghead">
+            <div style="display:flex;align-items:center;gap:10px;"><div class="rank-badge ${myRankIdx===0?'first':''}">${myRankIdx+1}</div><div class="gname">${esc(group.name)}</div></div>
+            <div class="pill pill-gold">${ranking[myRankIdx]?.pts??0} نقطة</div>
+          </div>
+          <p style="margin:6px 0 0;font-size:12.5px;color:#8a7f5c;">ترتيب مجموعتي: ${myRankIdx+1} من أصل ${ranking.length} مجموعة متنافسة</p>
+          <div style="margin-top:12px;padding-top:10px;border-top:1px dashed var(--line);">
+            <div style="font-size:12.5px;font-weight:800;color:var(--teal-800);margin-bottom:6px;">نقاط أعضاء المجموعة</div>
+            ${(()=>{ const members = data.students.filter(m=>m.groupId===group.id).map(m=>({name:m.name,pts:studentPoints(m.id),isMe:m.id===s.id})).sort((a,b)=>b.pts-a.pts);
+              return members.length? members.map(m=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 2px;font-size:12.5px;${m.isMe?'font-weight:800;color:var(--teal-800);':'color:#6b6142;'}">
+                <span>${esc(m.name)}${m.isMe?' <span style="font-size:11px;color:#a8895a;">(أنا)</span>':''}</span>
+                <span class="pill pill-gray">${m.pts} نقطة</span>
+              </div>`).join('') : `<div style="font-size:12px;color:#a89a6b;">لا يوجد أعضاء بعد</div>`;
+            })()}
+          </div>
+          ${group.bonusLog && group.bonusLog.length? `<div style="margin-top:12px;padding-top:10px;border-top:1px dashed var(--line);">
+            <div style="font-size:12.5px;font-weight:800;color:var(--teal-800);margin-bottom:6px;">نقاط إضافية من المشرف</div>
+            ${group.bonusLog.slice().reverse().map(l=>`<div style="font-size:12px;color:#8a7f5c;padding:3px 0;">
+              <span class="pill ${l.amount>0?'pill-green':'pill-red'}">${l.amount>0?'+':''}${l.amount} نقطة</span>
+              ${l.note?` — ${esc(l.note)}`:' — بدون سبب مذكور'}
+              <span style="color:#c2b78a;">(${l.date})</span>
+            </div>`).join('')}
+          </div>` : ''}
+          ` : `<div class="empty">لم يتم ضمّك إلى مجموعة بعد</div>`}
+      </div>
+      <div class="card">
+        <h3>المجموعات المتنافسة</h3>
+        ${ranking.length? ranking.map((g,i)=>`
+          <div class="group-card" style="${group&&g.id===group.id?'border-color:var(--gold);':''}"><div class="ghead">
+            <div style="display:flex;align-items:center;gap:10px;"><div class="rank-badge ${i===0?'first':''}">${i+1}</div><div class="gname">${esc(g.name)}${group&&g.id===group.id?' <span style=\"font-size:11px;color:#a8895a;\">(مجموعتي)</span>':''}</div></div>
+            <div class="pill pill-gold">${g.pts} نقطة</div>
+          </div></div>`).join('') : `<div class="empty">لا توجد مجموعات بعد</div>`}
+      </div>`;
+}
+function pageStudentAttendance(s){
+  const dates = classAttendanceDates();
+  if(!dates.length){
+    return `<div class="page-head"><h2>الحضور والغياب</h2></div><div class="card"><div class="empty">لم يتم تحديد فترة الفصل وأيام الدوام بعد</div></div>`;
+  }
+  const att = attendanceStats(s.id);
+  if(!ui.studentAttDate || !dates.includes(ui.studentAttDate)) ui.studentAttDate = dates.includes(todayStr()) ? todayStr() : dates[0];
+  const myAtt = data.attendance[s.id] || {};
+  const dayChips = dates.map(d=>{
+    const v = myAtt[d];
+    const cls = v==='present'?'done':v==='excused'||v==='unexcused'?'partial':'';
+    return `<div class="day-chip ${d===ui.studentAttDate?'sel':''} ${cls}" data-sdate="${d}">${dayChipLabel(d)}</div>`;
+  }).join('');
+  const status = myAtt[ui.studentAttDate];
+  const statusHtml = status==='present' ? `<span class="pill pill-green">حاضر</span>`
+    : status==='excused' ? `<span class="pill pill-gold">غياب بعذر</span>`
+    : status==='unexcused' ? `<span class="pill pill-red">غياب بدون عذر</span>`
+    : `<span class="pill pill-gray">لم يُسجَّل بعد</span>`;
+  return `
+      <div class="page-head"><h2>الحضور والغياب</h2><p>سجل حضورك التفصيلي — للمشاهدة فقط</p></div>
+      <div class="grid-cards">
+        <div class="stat-card accent"><div class="label">نسبة الحضور</div><div class="value">${att.pct}%</div><div class="sub">${att.present} حضور من ${att.total} يوم مسجّل</div>${progressBarHtml(att.pct)}</div>
+        <div class="stat-card"><div class="label">غياب بعذر</div><div class="value">${att.excused}</div></div>
+        <div class="stat-card"><div class="label">غياب بدون عذر</div><div class="value">${att.unexcused}</div></div>
+      </div>
+      <div class="card">
+        <h3>أيام الدوام ضمن فترة الفصل</h3>
+        <div class="days-scroll">${dayChips}</div>
+        <div class="legend" style="margin-top:10px;">
+          <span><i style="background:var(--teal-500);border-radius:50%;"></i> حاضر</span>
+          <span><i style="background:var(--gold);border-radius:50%;"></i> غياب (بعذر أو بدون)</span>
+          <span><i style="background:var(--line);border-radius:50%;"></i> لم يُسجَّل بعد</span>
+        </div>
+      </div>
+      <div class="card">
+        <h3>حالتي يوم: ${dayChipLabel(ui.studentAttDate)}</h3>
+        <div>${statusHtml}</div>
+      </div>`;
+}
+function pageStudentHifzi(s){
+  let cells = '';
+  for(let p=1;p<=TOTAL_PAGES;p++){
+    const g = (data.recitation[s.id]||{})[p];
+    const cls = g==='ممتاز'?'g3':g==='جيد جدا'?'g2':g==='جيد'?'g1':g==='مسمع من قبل'?'g0':'';
+    cells += `<div class="qpage ${cls}" title="صفحة ${p}${g?' — '+g:''}">${p}</div>`;
+  }
+  const rec = recitationStats(s.id);
+  const newCount = newMemorizationCount(s.id);
+  return `
+      <div class="page-head"><h2>حفظي</h2><p>604 صفحة — للمشاهدة فقط</p></div>
+      <div class="grid-cards">
+        <div class="stat-card"><div class="label">صفحات مُنجزة</div><div class="value">${rec.completed}/${TOTAL_PAGES}</div></div>
+        <div class="stat-card accent"><div class="label">صفحات منجزة هذا الفصل</div><div class="value">${newCount}</div><div class="sub">تقييم جيد أو جيد جدًا أو ممتاز</div></div>
+      </div>
+      <div class="card">
+        <h3>سجل الحفظ (604 صفحة)</h3>
+        <div class="quran-grid">${cells}</div>
+        <div class="legend">
+          <span><i style="background:var(--teal-700)"></i> ممتاز</span>
+          <span><i style="background:#4fa896"></i> جيد جدًا</span>
+          <span><i style="background:var(--gold)"></i> جيد</span>
+          <span><i style="background:#8a7d54"></i> مسمّع من قبل</span>
+          <span><i style="background:#fff;border:1.5px solid var(--line)"></i> لم يُسمّع بعد</span>
+        </div>
+      </div>`;
+}
+function bindStudent(){
+  document.getElementById('logout-btn').onclick = logout;
+  document.querySelectorAll('[data-snav]').forEach(b=>b.onclick=()=>{ ui.studentTab=b.dataset.snav; render(); });
+  document.querySelectorAll('[data-sdate]').forEach(el=>el.onclick=()=>{
+    ui.studentAttDate = el.dataset.sdate; render();
+  });
+}
+
+loadData();
+</script>
+</body>
+</html>
