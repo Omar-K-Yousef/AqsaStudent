@@ -748,7 +748,7 @@ function pageIncentive(){
           <button class="btn btn-danger btn-sm" data-del-group="${g.id}">حذف المجموعة</button></div>
       </div>
       <div style="margin-bottom:8px;">
-        ${members.length? members.map(m=>`<span class="chip">${esc(m.name)} <button data-remove-member="${m.id}">×</button></span>`).join('') : '<span style="color:#a89a6b;font-size:12.5px;">لا يوجد طلاب في هذه المجموعة</span>'}
+        ${members.length? [...members].sort((a,b)=>studentPoints(b.id)-studentPoints(a.id)).map(m=>`<span class="chip">${esc(m.name)} <b style="color:var(--teal-800);">— ${studentPoints(m.id)} نقطة</b> <button data-remove-member="${m.id}">×</button></span>`).join('') : '<span style="color:#a89a6b;font-size:12.5px;">لا يوجد طلاب في هذه المجموعة</span>'}
       </div>
       <div class="row">
         <select class="add-member-select" data-group="${g.id}" style="flex:1;min-width:150px;">
@@ -1387,16 +1387,29 @@ function pageStudentAttendance(s){
         <div>${statusHtml}</div>
       </div>`;
 }
+function taskDatesWithTasks(){
+  const tasks = data.tasks||[];
+  if(!tasks.length) return [];
+  const set = new Set(classPeriodDates());
+  tasks.forEach(t=>{ if(t.scheduleType==='once' && t.onceDate) set.add(t.onceDate); });
+  const dates = Array.from(set).sort();
+  return dates.filter(d=> tasks.some(t=>taskAppliesOnDate(t,d)));
+}
 function pageStudentTasks(s){
   const tasks = data.tasks||[];
   if(!tasks.length){
     return `<div class="page-head"><h2>مهماتي</h2><p>مهمات يومية يحددها المشرف وتُحتسب نقاطها ضمن الحافز الجماعي</p></div>
     <div class="card"><div class="empty">لا توجد مهمات مضافة من المشرف حاليًا</div></div>`;
   }
-  const dates = classPeriodDates();
-  if(!dates.length){
+  const periodDates = classPeriodDates();
+  if(!periodDates.length){
     return `<div class="page-head"><h2>مهماتي</h2><p>مهمات يومية يحددها المشرف وتُحتسب نقاطها ضمن الحافز الجماعي</p></div>
     <div class="card"><div class="empty">لم يتم تحديد فترة الفصل بعد من الإعدادات</div></div>`;
+  }
+  const dates = taskDatesWithTasks();
+  if(!dates.length){
+    return `<div class="page-head"><h2>مهماتي</h2><p>مهمات يومية يحددها المشرف وتُحتسب نقاطها ضمن الحافز الجماعي</p></div>
+    <div class="card"><div class="empty">لا توجد أيام لها مهمات مجدولة ضمن فترة الفصل الحالية</div></div>`;
   }
   if(!ui.studentTaskDate || !dates.includes(ui.studentTaskDate)){
     ui.studentTaskDate = nearestApplicableDate(dates);
@@ -1418,7 +1431,7 @@ function pageStudentTasks(s){
       <div class="stat-card accent"><div class="label">إجمالي نقاط المهمات</div><div class="value">${taskPointsForStudent(s.id)}</div></div>
     </div>
     <div class="card">
-      <h3>أيام الفصل</h3>
+      <h3>أيام فيها مهمات</h3>
       <div class="days-scroll">${dayChips}</div>
       <div class="legend" style="margin-top:10px;">
         <span><i style="background:var(--teal-500);border-radius:50%;"></i> أنجزت كل مهمات اليوم</span>
@@ -1465,6 +1478,8 @@ function bindStudentTasks(s){
   document.querySelectorAll('[data-tskday]').forEach(el=>el.onclick=()=>{
     ui.studentTaskDate = el.dataset.tskday; render();
   });
+  const selChip = document.querySelector('.day-chip.sel[data-tskday]');
+  if(selChip) selChip.scrollIntoView({block:'nearest', inline:'nearest'});
   document.querySelectorAll('[data-tsk-val]').forEach(el=>el.onclick=async ()=>{
     const [tid, val] = el.dataset.tskVal.split('|');
     const date = ui.studentTaskDate;
