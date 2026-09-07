@@ -248,12 +248,23 @@ const TOTAL_PAGES = 604;
 
 let data = null;
 let session = { role:null, adminIn:false, studentId:null };
-let ui = { adminTab:'overview', studentTab:'overview', selectedRecStudent:null, recDraft:null, attDate:'', attDraft:null, loginTab:'admin', loginError:'', editStudentId:null, editGroupId:null, studentAttDate:'' };
+function persistSession(){ try{ sessionStorage.setItem('qt_session', JSON.stringify(session)); }catch(e){} }
+function clearPersistedSession(){ try{ sessionStorage.removeItem('qt_session'); }catch(e){} }
+function restoreSession(){
+  try{
+    const raw = sessionStorage.getItem('qt_session');
+    if(!raw) return;
+    const saved = JSON.parse(raw);
+    if(saved && saved.role==='admin'){ session = saved; }
+    else if(saved && saved.role==='student' && saved.studentId && data.students.find(st=>st.id===saved.studentId)){ session = saved; }
+  }catch(e){}
+}
+let ui = { adminTab:'overview', studentTab:'overview', selectedRecStudent:null, recDraft:null, attDate:'', attDraft:null, loginTab:'admin', loginError:'', editStudentId:null, editGroupId:null, studentAttDate:'', taskDraft:null, studentTaskDate:'' };
 
 function defaultData(){
   return {
     config:{ adminEmail:'', adminPassword:'', setupDone:false, competitionStart:'', competitionEnd:'', classStart:'', classEnd:'', attendanceDays:[0,1,2,3,4] },
-    groups:[], students:[], attendance:{}, recitation:{}
+    groups:[], students:[], attendance:{}, recitation:{}, tasks:[], taskLogs:{}
   };
 }
 
@@ -262,6 +273,9 @@ async function loadData(){
     const snap = await dbRef.get();
     data = snap.exists() ? snap.val() : defaultData();
   }catch(e){ console.error('load failed', e); data = defaultData(); }
+  if(!data.tasks) data.tasks = [];
+  if(!data.taskLogs) data.taskLogs = {};
+  restoreSession();
   render();
 }
 async function saveData(){
@@ -312,8 +326,70 @@ function newMemorizationCount(studentId){
   Object.values(rec).forEach(g=>{ if(NEW_MEMORIZATION_GRADES.includes(g)) count++; });
   return count;
 }
+function taskEntryPoints(task, value){
+  if(!task || value===undefined || value===null) return 0;
+  if(task.evalType==='checkbox') return value==='done' ? (Number(task.checkboxPoints)||0) : 0;
+  if(task.evalType==='choice'){
+    const opt = (task.options||[]).find(o=>o.id===value);
+    return opt ? (Number(opt.points)||0) : 0;
+  }
+  if(task.evalType==='counter'){
+    const target = Number(task.counterTarget)||1;
+    const v = Math.min(Math.max(Number(value)||0,0), target);
+    return Math.round((v/target)*(Number(task.counterPoints)||0)*100)/100;
+  }
+  return 0;
+}
+function taskPointsForStudentSingleTask(task, studentId){
+  const log = ((data.taskLogs||{})[task.id]||{})[studentId] || {};
+  let total=0;
+  Object.values(log).forEach(v=>{ total += taskEntryPoints(task, v); });
+  return Math.round(total*100)/100;
+}
+function taskPointsForStudent(studentId){
+  let total = 0;
+  (data.tasks||[]).forEach(t=>{ total += taskPointsForStudentSingleTask(t, studentId); });
+  return Math.round(total*100)/100;
+}
+function classPeriodDates(){
+  const c = data.config;
+  if(!c.classStart || !c.classEnd) return [];
+  const dates = [];
+  let cur = new Date(c.classStart+'T00:00:00');
+  const end = new Date(c.classEnd+'T00:00:00');
+  let guard = 0;
+  while(cur <= end && guard < 3000){
+    guard++;
+    dates.push(toDateStr(cur));
+    cur.setDate(cur.getDate()+1);
+  }
+  return dates;
+}
+function taskAppliesOnDate(task, dateStr){
+  if(task.scheduleType==='once') return task.onceDate === dateStr;
+  const c = data.config;
+  const start = task.startDate || c.classStart;
+  const end = task.endDate || c.classEnd;
+  if(start && dateStr < start) return false;
+  if(end && dateStr > end) return false;
+  if(task.recurrence==='daily') return true;
+  const day = new Date(dateStr+'T00:00:00').getDay();
+  return (task.days||[]).includes(day);
+}
+function taskTypeLabel(t){
+  if(t.evalType==='checkbox') return `مربع تم / لم يتم — ${t.checkboxPoints} نقطة`;
+  if(t.evalType==='choice') return `اختيار من ${(t.options||[]).length} خيارات`;
+  if(t.evalType==='counter') return `عداد حتى ${t.counterTarget} — ${t.counterPoints} نقطة كاملة`;
+  return '';
+}
+function taskScheduleLabel(t){
+  if(t.scheduleType==='once') return `مرة واحدة — ${t.onceDate||'بلا تاريخ'}`;
+  const days = t.recurrence==='daily' ? 'يومي' : (t.days||[]).map(i=>WEEKDAYS[i]).join('، ') || '—';
+  const range = (t.startDate || t.endDate) ? ` (${t.startDate||'بداية الفصل'} → ${t.endDate||'نهاية الفصل'})` : '';
+  return `${days}${range}`;
+}
 function studentPoints(studentId){
-  return attendanceStats(studentId).pts + recitationStats(studentId).pts;
+  return attendanceStats(studentId).pts + recitationStats(studentId).pts + taskPointsForStudent(studentId);
 }
 function groupPoints(groupId){
   const g = data.groups.find(g=>g.id===groupId);
@@ -361,6 +437,14 @@ function classAttendanceDates(){
   }
   return dates;
 }
+function nearestApplicableDate(dates){
+  if(!dates || !dates.length) return '';
+  const today = todayStr();
+  if(dates.includes(today)) return today;
+  const past = dates.filter(d=>d<today);
+  if(past.length) return past[past.length-1];
+  return dates[0];
+}
 function dayChipLabel(dateStr){
   const [y,m,d] = dateStr.split('-').map(n=>parseInt(n,10));
   const wd = WEEKDAYS[new Date(dateStr+'T00:00:00').getDay()];
@@ -391,6 +475,7 @@ async function importBackupFile(file){
     await saveData();
     alert('تم استيراد النسخة الاحتياطية بنجاح، يمكنك الآن تسجيل الدخول');
     session = {role:null, adminIn:false, studentId:null};
+    clearPersistedSession();
     ui.loginError='';
     render();
     return true;
@@ -468,18 +553,18 @@ function bindLogin(){
       const email=document.getElementById('lg-email').value.trim();
       const pass=document.getElementById('lg-pass').value;
       if(email===data.config.adminEmail && pass===data.config.adminPassword){
-        session.role='admin'; ui.loginError=''; render();
+        session.role='admin'; ui.loginError=''; persistSession(); render();
       } else { ui.loginError='البريد الإلكتروني أو كلمة المرور غير صحيحة'; render(); }
     } else {
       const user=document.getElementById('lg-user').value.trim();
       const pass=document.getElementById('lg-spass').value;
       const s = data.students.find(s=>s.name===user && s.password===pass);
-      if(s){ session.role='student'; session.studentId=s.id; ui.loginError=''; render(); }
+      if(s){ session.role='student'; session.studentId=s.id; ui.loginError=''; persistSession(); render(); }
       else { ui.loginError='اسم الطالب أو كلمة المرور غير صحيحة'; render(); }
     }
   };
 }
-function logout(){ session={role:null,studentId:null}; ui.loginError=''; render(); }
+function logout(){ session={role:null,studentId:null}; ui.loginError=''; clearPersistedSession(); render(); }
 
 /* ---------- admin shell ---------- */
 const ADMIN_NAV = [
@@ -488,6 +573,7 @@ const ADMIN_NAV = [
   {k:'incentive', ic:'✦', label:'الحافز (المجموعات)'},
   {k:'attendance', ic:'▤', label:'الحضور والغياب'},
   {k:'recitation', ic:'◫', label:'التسميع'},
+  {k:'tasks', ic:'✎', label:'المهمات'},
   {k:'settings', ic:'⚙', label:'الإعدادات'},
 ];
 function adminShell(){
@@ -507,18 +593,20 @@ function adminPage(){
     case 'incentive': return pageIncentive();
     case 'attendance': return pageAttendance();
     case 'recitation': return pageRecitation();
+    case 'tasks': return pageTasks();
     case 'settings': return pageSettings();
     default: return '';
   }
 }
 function bindAdmin(){
-  document.querySelectorAll('[data-nav]').forEach(b=>b.onclick=()=>{ ui.adminTab=b.dataset.nav; ui.recDraft=null; ui.attDraft=null; ui.editStudentId=null; ui.editGroupId=null; render(); });
+  document.querySelectorAll('[data-nav]').forEach(b=>b.onclick=()=>{ ui.adminTab=b.dataset.nav; ui.recDraft=null; ui.attDraft=null; ui.editStudentId=null; ui.editGroupId=null; ui.taskDraft=null; render(); });
   document.getElementById('logout-btn').onclick = logout;
   const p = ui.adminTab;
   if(p==='students') bindStudents();
   if(p==='incentive') bindIncentive();
   if(p==='attendance') bindAttendance();
   if(p==='recitation') bindRecitation();
+  if(p==='tasks') bindTasks();
   if(p==='settings') bindSettings();
 }
 
@@ -599,6 +687,7 @@ function bindStudents(){
     const id=b.dataset.delStudent;
     data.students = data.students.filter(s=>s.id!==id);
     delete data.attendance[id]; delete data.recitation[id];
+    if(data.taskLogs) Object.values(data.taskLogs).forEach(tl=>{ delete tl[id]; });
     await saveData(); render();
   });
   document.querySelectorAll('[data-edit-student]').forEach(b=>b.onclick=()=>{
@@ -879,6 +968,217 @@ function bindRecitation(){
   };
 }
 
+/* ---------- tasks (مهمات المشرف) ---------- */
+function ensureTaskDraft(){
+  if(!ui.taskDraft){
+    ui.taskDraft = {
+      id:null, title:'', description:'',
+      scheduleType:'recurring', onceDate:'',
+      recurrence:'daily', days:[],
+      startDate:'', endDate:'',
+      evalType:'checkbox',
+      checkboxPoints:1,
+      options:[{id:uid(), label:'', points:1},{id:uid(), label:'', points:0}],
+      counterTarget:2, counterPoints:2
+    };
+  }
+}
+function pageTasks(){
+  ensureTaskDraft();
+  const d = ui.taskDraft;
+  return `
+  <div class="page-head"><h2>المهمات</h2><p>أنشئ مهمات يسجّل الطالب إنجازه فيها بنفسه، وتُحتسب نقاطها ضمن الحافز الجماعي تلقائيًا حسب ما تحدده هنا</p></div>
+  <div class="card">
+    <h3>${d.id? 'تعديل المهمة':'إضافة مهمة جديدة'}</h3>
+    <div class="row">
+      <div class="field"><label>عنوان المهمة</label><input type="text" id="tk-title" value="${esc(d.title)}" placeholder="مثال: قراءة صفحتين من كتاب"></div>
+      <div class="field"><label>وصف (اختياري)</label><input type="text" id="tk-desc" value="${esc(d.description)}" placeholder="تفاصيل إضافية للطالب"></div>
+    </div>
+    <div class="field" style="margin-top:6px;">
+      <label>جدولة المهمة</label>
+      <div class="tabs" style="max-width:300px;">
+        <button type="button" class="tab-btn ${(d.scheduleType||'recurring')==='recurring'?'active':''}" data-tk-schedule="recurring">متكررة</button>
+        <button type="button" class="tab-btn ${d.scheduleType==='once'?'active':''}" data-tk-schedule="once">مرة واحدة بتاريخ محدد</button>
+      </div>
+    </div>
+    ${d.scheduleType==='once'? `
+      <div class="field"><label>تاريخ المهمة</label><input type="date" id="tk-once-date" value="${d.onceDate||''}" style="max-width:200px;"></div>
+    ` : `
+      <div class="field" style="margin-top:6px;">
+        <label>التكرار</label>
+        <div class="tabs" style="max-width:260px;">
+          <button type="button" class="tab-btn ${d.recurrence==='daily'?'active':''}" data-tk-rec="daily">يومي</button>
+          <button type="button" class="tab-btn ${d.recurrence==='custom'?'active':''}" data-tk-rec="custom">أيام محددة من الأسبوع</button>
+        </div>
+      </div>
+      ${d.recurrence==='custom'? `<div class="field"><label>أيام هذه المهمة</label><div class="weekday-picker">${WEEKDAYS.map((w,i)=>`<div class="wd ${(d.days||[]).includes(i)?'sel':''}" data-tk-day="${i}">${w}</div>`).join('')}</div></div>` : ''}
+      <div class="row">
+        <div class="field"><label>من تاريخ (اختياري)</label><input type="date" id="tk-start-date" value="${d.startDate||''}" style="max-width:200px;"></div>
+        <div class="field"><label>إلى تاريخ (اختياري)</label><input type="date" id="tk-end-date" value="${d.endDate||''}" style="max-width:200px;"></div>
+      </div>
+      <p class="hint" style="text-align:right;margin:0 0 10px;">اتركهما فارغين لتطبيق المهمة طوال فترة الفصل، أو حدد التاريخين لتفعيلها لفترة أقصر فقط — مثلًا أسبوعين اثنين.</p>
+    `}
+    <div class="field" style="margin-top:6px;">
+      <label>طريقة تسجيل الطالب لإنجازه</label>
+      <select id="tk-evaltype">
+        <option value="checkbox" ${d.evalType==='checkbox'?'selected':''}>مربع: تم / ما تم</option>
+        <option value="choice" ${d.evalType==='choice'?'selected':''}>اختيار خيار واحد من عدة خيارات</option>
+        <option value="counter" ${d.evalType==='counter'?'selected':''}>عداد رقمي بهدف محدد</option>
+      </select>
+    </div>
+    ${d.evalType==='checkbox'? `
+      <div class="field"><label>النقاط عند اختيار «تم»</label><input type="number" id="tk-cb-points" value="${d.checkboxPoints}" min="0" step="0.5" style="max-width:160px;"></div>
+    ` : ''}
+    ${d.evalType==='choice'? `
+      <div class="field">
+        <label>خيارات التقييم (يختار الطالب واحدًا منها فقط)</label>
+        ${d.options.map((o,i)=>`
+          <div class="row" style="margin-bottom:8px;">
+            <input type="text" class="tk-opt-label" data-idx="${i}" value="${esc(o.label)}" placeholder="نص الخيار، مثل: أنجز كاملًا" style="flex:2;">
+            <input type="number" class="tk-opt-points" data-idx="${i}" value="${o.points}" step="0.5" placeholder="النقاط" style="max-width:110px;">
+            ${d.options.length>2? `<button type="button" class="btn btn-danger btn-sm" data-tk-remove-opt="${i}">حذف</button>`:''}
+          </div>`).join('')}
+        <button type="button" class="btn btn-ghost btn-sm" id="tk-add-opt">+ إضافة خيار</button>
+      </div>
+    ` : ''}
+    ${d.evalType==='counter'? `
+      <div class="row">
+        <div class="field"><label>الرقم المستهدف (مثال: عدد الصفحات المطلوبة)</label><input type="number" id="tk-counter-target" value="${d.counterTarget}" min="1" step="1" style="max-width:190px;"></div>
+        <div class="field"><label>النقاط الكاملة عند تحقيق الهدف بالكامل</label><input type="number" id="tk-counter-points" value="${d.counterPoints}" min="0" step="0.5" style="max-width:190px;"></div>
+      </div>
+      <p class="hint" style="text-align:right;margin:0 0 10px;">تُحسب نقاط الطالب حسب نسبة إنجازه من الهدف تلقائيًا — إن حقق نصف الهدف مثلًا يحصل على نصف النقاط الكاملة.</p>
+    ` : ''}
+    <div class="row" style="margin-top:10px;">
+      <button class="btn btn-gold" id="tk-save">${d.id? 'حفظ التعديلات':'إضافة المهمة'}</button>
+      ${d.id? `<button class="btn btn-ghost" id="tk-cancel">إلغاء التعديل</button>`:''}
+    </div>
+  </div>
+  <div class="card">
+    <h3>قائمة المهمات (${data.tasks.length})</h3>
+    ${data.tasks.length? data.tasks.map(t=>`
+      <div class="group-card">
+        <div class="ghead">
+          <div class="gname">${esc(t.title)}</div>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-ghost btn-sm" data-tk-edit="${t.id}">تعديل</button>
+            <button class="btn btn-danger btn-sm" data-tk-del="${t.id}">حذف</button>
+          </div>
+        </div>
+        ${t.description? `<p style="margin:0 0 8px;font-size:12.5px;color:#8a7f5c;">${esc(t.description)}</p>`:''}
+        <div style="display:flex;gap:6px;flex-wrap:wrap;font-size:12px;margin-bottom:10px;">
+          <span class="pill pill-gray">${taskScheduleLabel(t)}</span>
+          <span class="pill pill-gold">${taskTypeLabel(t)}</span>
+        </div>
+        ${data.students.length? `<div style="padding-top:8px;border-top:1px dashed var(--line);">
+          <div style="font-size:12px;font-weight:800;color:var(--teal-800);margin-bottom:6px;">نقاط الطلاب من هذه المهمة</div>
+          ${data.students.map(st=>`<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;color:#6b6142;"><span>${esc(st.name)}</span><span class="pill pill-gray">${taskPointsForStudentSingleTask(t, st.id)} نقطة</span></div>`).join('')}
+        </div>` : ''}
+      </div>`).join('') : `<div class="empty">لم تُضَف أي مهمة بعد</div>`}
+  </div>`;
+}
+function syncTaskDraftFromDOM(){
+  const d = ui.taskDraft; if(!d) return;
+  const title = document.getElementById('tk-title'); if(title) d.title = title.value;
+  const desc = document.getElementById('tk-desc'); if(desc) d.description = desc.value;
+  if(d.scheduleType==='once'){
+    const od = document.getElementById('tk-once-date'); if(od) d.onceDate = od.value;
+  } else {
+    const sd = document.getElementById('tk-start-date'); if(sd) d.startDate = sd.value;
+    const ed = document.getElementById('tk-end-date'); if(ed) d.endDate = ed.value;
+  }
+  if(d.evalType==='checkbox'){
+    const p = document.getElementById('tk-cb-points'); if(p) d.checkboxPoints = parseFloat(p.value)||0;
+  }
+  if(d.evalType==='choice'){
+    document.querySelectorAll('.tk-opt-label').forEach(inp=>{ const i=+inp.dataset.idx; if(d.options[i]) d.options[i].label = inp.value; });
+    document.querySelectorAll('.tk-opt-points').forEach(inp=>{ const i=+inp.dataset.idx; if(d.options[i]) d.options[i].points = parseFloat(inp.value)||0; });
+  }
+  if(d.evalType==='counter'){
+    const t = document.getElementById('tk-counter-target'); if(t) d.counterTarget = parseInt(t.value,10)||1;
+    const p = document.getElementById('tk-counter-points'); if(p) d.counterPoints = parseFloat(p.value)||0;
+  }
+}
+function bindTasks(){
+  document.querySelectorAll('[data-tk-schedule]').forEach(b=>b.onclick=()=>{
+    syncTaskDraftFromDOM();
+    ui.taskDraft.scheduleType = b.dataset.tkSchedule;
+    render();
+  });
+  document.querySelectorAll('[data-tk-rec]').forEach(b=>b.onclick=()=>{
+    syncTaskDraftFromDOM();
+    ui.taskDraft.recurrence = b.dataset.tkRec;
+    render();
+  });
+  document.querySelectorAll('[data-tk-day]').forEach(b=>b.onclick=()=>{
+    syncTaskDraftFromDOM();
+    const day = parseInt(b.dataset.tkDay,10);
+    const arr = ui.taskDraft.days;
+    const i = arr.indexOf(day);
+    if(i>-1) arr.splice(i,1); else arr.push(day);
+    render();
+  });
+  const evalSel = document.getElementById('tk-evaltype');
+  if(evalSel) evalSel.onchange = ()=>{
+    syncTaskDraftFromDOM();
+    ui.taskDraft.evalType = evalSel.value;
+    render();
+  };
+  const addOptBtn = document.getElementById('tk-add-opt');
+  if(addOptBtn) addOptBtn.onclick = ()=>{
+    syncTaskDraftFromDOM();
+    ui.taskDraft.options.push({id:uid(), label:'', points:0});
+    render();
+  };
+  document.querySelectorAll('[data-tk-remove-opt]').forEach(b=>b.onclick=()=>{
+    syncTaskDraftFromDOM();
+    const idx = parseInt(b.dataset.tkRemoveOpt,10);
+    ui.taskDraft.options.splice(idx,1);
+    render();
+  });
+  document.querySelectorAll('[data-tk-edit]').forEach(b=>b.onclick=()=>{
+    const t = data.tasks.find(t=>t.id===b.dataset.tkEdit);
+    if(!t) return;
+    ui.taskDraft = JSON.parse(JSON.stringify(t));
+    render();
+    window.scrollTo({top:0, behavior:'smooth'});
+  });
+  const cancelBtn = document.getElementById('tk-cancel');
+  if(cancelBtn) cancelBtn.onclick = ()=>{ ui.taskDraft=null; render(); };
+  document.querySelectorAll('[data-tk-del]').forEach(b=>b.onclick=async ()=>{
+    if(!confirm('هل تريد حذف هذه المهمة؟ سيتم حذف كل سجلات الطلاب المرتبطة بها ونقاطها.')) return;
+    const id = b.dataset.tkDel;
+    data.tasks = data.tasks.filter(t=>t.id!==id);
+    if(data.taskLogs) delete data.taskLogs[id];
+    if(ui.taskDraft && ui.taskDraft.id===id) ui.taskDraft = null;
+    await saveData(); render();
+  });
+  const saveBtn = document.getElementById('tk-save');
+  if(saveBtn) saveBtn.onclick = async ()=>{
+    syncTaskDraftFromDOM();
+    const d = ui.taskDraft;
+    if(!d.title.trim()){ alert('الرجاء إدخال عنوان المهمة'); return; }
+    if(d.scheduleType==='once'){
+      if(!d.onceDate){ alert('الرجاء اختيار تاريخ للمهمة'); return; }
+    } else {
+      if(d.recurrence==='custom' && !(d.days||[]).length){ alert('الرجاء اختيار يوم واحد على الأقل'); return; }
+      if(d.startDate && d.endDate && d.startDate > d.endDate){ alert('تاريخ البداية يجب أن يكون قبل تاريخ النهاية'); return; }
+    }
+    if(d.evalType==='choice'){
+      d.options = d.options.filter(o=>o.label.trim());
+      if(d.options.length<2){ alert('الرجاء إدخال خيارين على الأقل بنص واضح'); return; }
+    }
+    if(d.evalType==='counter' && (!d.counterTarget || d.counterTarget<1)){ alert('الرجاء إدخال رقم مستهدف صحيح'); return; }
+    if(d.id){
+      const idx = data.tasks.findIndex(t=>t.id===d.id);
+      if(idx>-1) data.tasks[idx] = d;
+    } else {
+      data.tasks.push(Object.assign({}, d, {id:uid()}));
+    }
+    ui.taskDraft = null;
+    await saveData(); render();
+  };
+}
+
 /* ---------- settings ---------- */
 function pageSettings(){
   const c = data.config;
@@ -958,11 +1258,12 @@ const STUDENT_NAV = [
   {k:'hifzi', ic:'◫', label:'حفظي'},
   {k:'incentive', ic:'🏆', label:'الحافز'},
   {k:'attendance', ic:'🗓', label:'الحضور والغياب'},
+  {k:'tasks', ic:'📝', label:'مهماتي'},
 ];
 function studentShell(){
   const s = data.students.find(s=>s.id===session.studentId);
   if(!s) return `<div class="empty">تعذر إيجاد بيانات الطالب</div>`;
-  const pages = { overview: pageStudentOverview, hifzi: pageStudentHifzi, incentive: pageStudentIncentive, attendance: pageStudentAttendance };
+  const pages = { overview: pageStudentOverview, hifzi: pageStudentHifzi, incentive: pageStudentIncentive, attendance: pageStudentAttendance, tasks: pageStudentTasks };
   const pageFn = pages[ui.studentTab] || pageStudentOverview;
   return `<div class="shell">
     <div class="sidebar">
@@ -986,6 +1287,7 @@ function pageStudentOverview(s){
         <div class="stat-card"><div class="label">غياب بعذر</div><div class="value">${att.excused}</div></div>
         <div class="stat-card"><div class="label">غياب بدون عذر</div><div class="value">${att.unexcused}</div></div>
         <div class="stat-card"><div class="label">صفحات مُنجزة</div><div class="value">${rec.completed}/${TOTAL_PAGES}</div></div>
+        <div class="stat-card"><div class="label">نقاط مهماتي</div><div class="value">${taskPointsForStudent(s.id)}</div></div>
       </div>
       ${group? `<div class="card">
         <h3>مجموعتي في الحافز</h3>
@@ -1052,7 +1354,7 @@ function pageStudentAttendance(s){
     return `<div class="page-head"><h2>الحضور والغياب</h2></div><div class="card"><div class="empty">لم يتم تحديد فترة الفصل وأيام الدوام بعد</div></div>`;
   }
   const att = attendanceStats(s.id);
-  if(!ui.studentAttDate || !dates.includes(ui.studentAttDate)) ui.studentAttDate = dates.includes(todayStr()) ? todayStr() : dates[0];
+  if(!ui.studentAttDate || !dates.includes(ui.studentAttDate)) ui.studentAttDate = nearestApplicableDate(dates);
   const myAtt = data.attendance[s.id] || {};
   const dayChips = dates.map(d=>{
     const v = myAtt[d];
@@ -1084,6 +1386,110 @@ function pageStudentAttendance(s){
         <h3>حالتي يوم: ${dayChipLabel(ui.studentAttDate)}</h3>
         <div>${statusHtml}</div>
       </div>`;
+}
+function pageStudentTasks(s){
+  const tasks = data.tasks||[];
+  if(!tasks.length){
+    return `<div class="page-head"><h2>مهماتي</h2><p>مهمات يومية يحددها المشرف وتُحتسب نقاطها ضمن الحافز الجماعي</p></div>
+    <div class="card"><div class="empty">لا توجد مهمات مضافة من المشرف حاليًا</div></div>`;
+  }
+  const dates = classPeriodDates();
+  if(!dates.length){
+    return `<div class="page-head"><h2>مهماتي</h2><p>مهمات يومية يحددها المشرف وتُحتسب نقاطها ضمن الحافز الجماعي</p></div>
+    <div class="card"><div class="empty">لم يتم تحديد فترة الفصل بعد من الإعدادات</div></div>`;
+  }
+  if(!ui.studentTaskDate || !dates.includes(ui.studentTaskDate)){
+    ui.studentTaskDate = nearestApplicableDate(dates);
+  }
+  const selDate = ui.studentTaskDate;
+  const dayChips = dates.map(d=>{
+    const dayTasks = tasks.filter(t=>taskAppliesOnDate(t,d));
+    const doneCount = dayTasks.filter(t=>{
+      const v = ((data.taskLogs||{})[t.id]||{})[s.id] || {};
+      return v[d]!==undefined && v[d]!==null;
+    }).length;
+    const cls = dayTasks.length && doneCount===dayTasks.length ? 'done' : (doneCount>0 ? 'partial' : '');
+    return `<div class="day-chip ${d===selDate?'sel':''} ${cls}" data-tskday="${d}">${dayChipLabel(d)}</div>`;
+  }).join('');
+  const todaysTasks = tasks.filter(t=>taskAppliesOnDate(t, selDate));
+  return `
+    <div class="page-head"><h2>مهماتي</h2><p>اختر اليوم، وسجّل ما أنجزته من مهمات هذا اليوم — النقاط يحددها المشرف وتُحسب تلقائيًا</p></div>
+    <div class="grid-cards">
+      <div class="stat-card accent"><div class="label">إجمالي نقاط المهمات</div><div class="value">${taskPointsForStudent(s.id)}</div></div>
+    </div>
+    <div class="card">
+      <h3>أيام الفصل</h3>
+      <div class="days-scroll">${dayChips}</div>
+      <div class="legend" style="margin-top:10px;">
+        <span><i style="background:var(--teal-500);border-radius:50%;"></i> أنجزت كل مهمات اليوم</span>
+        <span><i style="background:var(--gold);border-radius:50%;"></i> أنجزت جزءًا من مهمات اليوم</span>
+        <span><i style="background:var(--line);border-radius:50%;"></i> لم تُسجَّل بعد</span>
+      </div>
+    </div>
+    <div class="page-head" style="margin-bottom:10px;"><h2 style="font-size:16.5px;">مهمات يوم: ${dayChipLabel(selDate)}</h2></div>
+    ${todaysTasks.length? todaysTasks.map(t=>renderStudentTaskCard(s,t,selDate)).join('') : `<div class="card"><div class="empty">لا توجد مهمات محددة لهذا اليوم</div></div>`}
+  `;
+}
+function renderStudentTaskCard(s, t, selDate){
+  const log = ((data.taskLogs||{})[t.id]||{})[s.id] || {};
+  const val = log[selDate];
+  const earnedForDay = taskEntryPoints(t, val);
+  let controlHtml = '';
+  if(t.evalType==='checkbox'){
+    controlHtml = `<div class="att-radio" style="max-width:260px;">
+      <div class="att-opt ${val==='done'?'sel-present':''}" data-tsk-val="${t.id}|done">تم</div>
+      <div class="att-opt ${val==='not_done'?'sel-unexcused':''}" data-tsk-val="${t.id}|not_done">ما تم</div>
+    </div>`;
+  } else if(t.evalType==='choice'){
+    controlHtml = `<div class="att-radio" style="flex-wrap:wrap;">
+      ${(t.options||[]).map(o=>`<div class="att-opt ${val===o.id?'sel-present':''}" data-tsk-val="${t.id}|${o.id}">${esc(o.label)}</div>`).join('')}
+    </div>`;
+  } else if(t.evalType==='counter'){
+    const cur = Math.min(Math.max(Number(val)||0,0), t.counterTarget||1);
+    controlHtml = `<div style="display:flex;align-items:center;gap:12px;">
+      <button class="btn btn-ghost btn-sm" data-tsk-counter="${t.id}|dec">−</button>
+      <div style="font-weight:900;font-size:18px;color:var(--teal-800);min-width:70px;text-align:center;">${cur} / ${t.counterTarget}</div>
+      <button class="btn btn-ghost btn-sm" data-tsk-counter="${t.id}|inc">+</button>
+    </div>`;
+  }
+  return `<div class="card">
+    <h3>${esc(t.title)}</h3>
+    ${t.description? `<p style="margin:-6px 0 12px;font-size:12.5px;color:#8a7f5c;">${esc(t.description)}</p>`:''}
+    ${controlHtml}
+    <div style="margin-top:12px;">
+      <span class="pill pill-gold">${earnedForDay} نقطة عن هذا اليوم</span>
+    </div>
+  </div>`;
+}
+function bindStudentTasks(s){
+  document.querySelectorAll('[data-tskday]').forEach(el=>el.onclick=()=>{
+    ui.studentTaskDate = el.dataset.tskday; render();
+  });
+  document.querySelectorAll('[data-tsk-val]').forEach(el=>el.onclick=async ()=>{
+    const [tid, val] = el.dataset.tskVal.split('|');
+    const date = ui.studentTaskDate;
+    if(!data.taskLogs) data.taskLogs={};
+    if(!data.taskLogs[tid]) data.taskLogs[tid]={};
+    if(!data.taskLogs[tid][s.id]) data.taskLogs[tid][s.id]={};
+    const cur = data.taskLogs[tid][s.id][date];
+    if(cur===val) delete data.taskLogs[tid][s.id][date];
+    else data.taskLogs[tid][s.id][date] = val;
+    await saveData(); render();
+  });
+  document.querySelectorAll('[data-tsk-counter]').forEach(el=>el.onclick=async ()=>{
+    const [tid, dir] = el.dataset.tskCounter.split('|');
+    const t = data.tasks.find(t=>t.id===tid);
+    if(!t) return;
+    const date = ui.studentTaskDate;
+    if(!data.taskLogs) data.taskLogs={};
+    if(!data.taskLogs[tid]) data.taskLogs[tid]={};
+    if(!data.taskLogs[tid][s.id]) data.taskLogs[tid][s.id]={};
+    let cur = Number(data.taskLogs[tid][s.id][date])||0;
+    cur = dir==='inc' ? Math.min(cur+1, t.counterTarget||1) : Math.max(cur-1,0);
+    if(cur<=0) delete data.taskLogs[tid][s.id][date];
+    else data.taskLogs[tid][s.id][date] = cur;
+    await saveData(); render();
+  });
 }
 function pageStudentHifzi(s){
   let cells = '';
@@ -1118,6 +1524,10 @@ function bindStudent(){
   document.querySelectorAll('[data-sdate]').forEach(el=>el.onclick=()=>{
     ui.studentAttDate = el.dataset.sdate; render();
   });
+  if(ui.studentTab==='tasks'){
+    const s = data.students.find(s=>s.id===session.studentId);
+    if(s) bindStudentTasks(s);
+  }
 }
 
 loadData();
